@@ -1,8 +1,0 @@
-🐐 *Menú Fiesta del Chivo*
-
-Elige una opción escribiendo el número correspondiente y te ayudaré 😊
-1️⃣ - 🎫 Ventas de Entradas [PAMPA DEL INFIERNO]
-2️⃣ - 🎫 Ventas de Entradas [OTRAS LOCALIDADES]
-3️⃣ - 📰 Acreditación e Información de Medios
-4️⃣ - 🎸 Información para artistas [Cacharpaya]
-0️⃣ - 🔙 Volver al Menú Principal 🔙
