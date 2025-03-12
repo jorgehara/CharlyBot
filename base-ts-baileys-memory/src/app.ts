@@ -88,15 +88,29 @@ const agendarFlow = addKeyword('1')
                     return;
                 }
 
-                const message = [
-                    `🕒 Horarios disponibles para el ${availableSlots[0].displayDate}:`,
-                    '',
-                    availableSlots
+                // Agrupar slots por período (mañana/tarde)
+                const morningSlots = availableSlots.filter(slot => slot.period === 'mañana');
+                const afternoonSlots = availableSlots.filter(slot => slot.period === 'tarde');
+
+                // Crear mensaje con los horarios agrupados
+                let message = `🕒 Horarios disponibles para el ${availableSlots[0].displayDate}:\n\n`;
+                
+                if (morningSlots.length > 0) {
+                    message += `*TURNO MAÑANA (8:30 a 12:00)*\n`;
+                    message += morningSlots
                         .map(slot => `${slot.id}. ${slot.displayTime}`)
-                        .join('\n'),
-                    '',
-                    '¿Qué horario prefieres? (escribe el número)'
-                ].join('\n');
+                        .join('\n');
+                    message += '\n\n';
+                }
+                
+                if (afternoonSlots.length > 0) {
+                    message += `*TURNO TARDE (16:00 a 20:00)*\n`;
+                    message += afternoonSlots
+                        .map(slot => `${slot.id}. ${slot.displayTime}`)
+                        .join('\n');
+                }
+                
+                message += '\n\n¿Qué horario prefieres? (escribe el número)';
 
                 await state.update({ availableSlots });
                 await flowDynamic(message);
@@ -322,8 +336,21 @@ const setupServer = (adapterProvider: any, handleCtx: any) => {
             }
             
             // Obtener eventos existentes del calendario para verificar disponibilidad
-            const selectedDate = date ? new Date(date) : new Date();
+            let selectedDate;
+            if (date) {
+                // Crear la fecha a partir del string YYYY-MM-DD
+                const [year, month, day] = (date as string).split('-').map(Number);
+                selectedDate = new Date(year, month - 1, day); // Mes es 0-indexado en JavaScript
+                
+                // Asegurarse de que la fecha sea correcta (sin ajustes de zona horaria)
+                selectedDate.setHours(0, 0, 0, 0);
+                console.log(`Fecha seleccionada parseada: ${selectedDate.toISOString()}`);
+            } else {
+                selectedDate = new Date();
+            }
+            
             const existingEvents = await calendarService.listEvents(CALENDAR_ID!, selectedDate);
+            console.log(`Eventos existentes: ${existingEvents.length}`);
             
             // Obtener slots disponibles considerando los eventos existentes
             const availableSlots = await appointmentService.getAvailableTimeSlots(
@@ -331,10 +358,21 @@ const setupServer = (adapterProvider: any, handleCtx: any) => {
                 existingEvents
             );
 
+            // Agrupar slots por período
+            const morningSlots = availableSlots.filter(slot => slot.period === 'mañana');
+            const afternoonSlots = availableSlots.filter(slot => slot.period === 'tarde');
+            
+            console.log(`Slots mañana: ${morningSlots.length}, Slots tarde: ${afternoonSlots.length}`);
+
             const responseData = {
                 success: true,
                 date: date || 'hoy',
-                slots: availableSlots
+                displayDate: availableSlots.length > 0 ? availableSlots[0].displayDate : new Date().toLocaleDateString('es-ES'),
+                slots: {
+                    morning: morningSlots,
+                    afternoon: afternoonSlots
+                },
+                allSlots: availableSlots
             };
             
             res.writeHead(200, { 'Content-Type': 'application/json' });

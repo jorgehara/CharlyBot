@@ -10,12 +10,16 @@ interface TimeSlot {
     available: boolean;
     displayTime: string;
     displayDate: string;
+    period: 'mañana' | 'tarde'; // Añadimos el período para mostrar
 }
 
 export class AppointmentsService {
-    private START_HOUR = 8;  // 8 AM
-    private END_HOUR = 12;   // 12 PM
-    private SLOT_DURATION = 30; // Duración de cada turno en minutos
+    // Definimos los horarios de mañana y tarde
+    private MORNING_START = 8.5; // 8:30 AM
+    private MORNING_END = 12;    // 12:00 PM
+    private AFTERNOON_START = 16; // 16:00 PM
+    private AFTERNOON_END = 20;   // 20:00 PM
+    private SLOT_DURATION = 30;   // Duración de cada turno en minutos
 
     // Método para verificar si un slot está ocupado por algún evento existente
     private isSlotOccupied(slotTime: Date, events: any[]): boolean {
@@ -39,42 +43,118 @@ export class AppointmentsService {
         });
     }
 
-    // Método simplificado para obtener slots de hoy
-    async getAvailableSlotsForToday(events: any[] = []) {
-        const now = new Date();
-        const slots = [];
-        let id = 1;
+    // Método para formatear la hora en formato legible
+    private formatTime(hour: number): string {
+        const fullHour = Math.floor(hour);
+        const minutes = (hour - fullHour) * 60;
+        return `${fullHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    }
 
-        const currentHour = now.getHours();
-        const currentMinutes = now.getMinutes();
+    // Método para generar slots para un rango de horas
+    private generateSlotsForRange(
+        date: Date, 
+        startHour: number, 
+        endHour: number, 
+        events: any[], 
+        isToday: boolean,
+        currentHour: number,
+        currentMinutes: number,
+        period: 'mañana' | 'tarde',
+        startId: number
+    ): TimeSlot[] {
+        const slots: TimeSlot[] = [];
+        let id = startId;
 
-        for (let hour = this.START_HOUR; hour <= this.END_HOUR; hour++) {
-            for (const minutes of [0, 30]) {
-                // Solo incluir horas futuras
-                if (hour > currentHour || (hour === currentHour && minutes > currentMinutes)) {
-                    const time = new Date();
-                    time.setHours(hour, minutes, 0, 0);
-                    
-                    const isOccupied = this.isSlotOccupied(time, events);
-                    
-                    slots.push({
-                        id,
-                        time: time.toISOString(),
-                        displayTime: `${hour}:${minutes === 0 ? '00' : '30'}`,
-                        displayDate: time.toLocaleDateString('es-ES', {
-                            weekday: 'long',
-                            day: 'numeric',
-                            month: 'long'
-                        }),
-                        available: !isOccupied
-                    });
-                    id++;
-                }
+        // Crear una copia de la fecha para no modificar la original
+        const slotDate = new Date(date);
+        
+        // Asegurarse de que estamos trabajando con la fecha correcta
+        console.log(`Generando slots para ${period} - Fecha: ${slotDate.toISOString()}`);
+
+        for (let hour = startHour; hour < endHour; hour += 0.5) {
+            // Convertir hora decimal a horas y minutos
+            const fullHour = Math.floor(hour);
+            const minutes = (hour - fullHour) * 60;
+            
+            // Solo filtrar por hora actual si es hoy
+            if (isToday && (fullHour < currentHour || (fullHour === currentHour && minutes <= currentMinutes))) {
+                console.log(`Saltando slot ${fullHour}:${minutes} por ser anterior a la hora actual`);
+                continue;
             }
+
+            // Crear una nueva fecha para cada slot para evitar problemas de referencia
+            const time = new Date(slotDate);
+            time.setHours(fullHour, minutes, 0, 0);
+            
+            const isOccupied = this.isSlotOccupied(time, events);
+            
+            // Mostrar información de depuración
+            console.log(`Slot ${period} - ${fullHour}:${minutes} - ISO: ${time.toISOString()} - Ocupado: ${isOccupied}`);
+            
+            slots.push({
+                id,
+                time: time.toISOString(),
+                displayTime: this.formatTime(hour),
+                displayDate: time.toLocaleDateString('es-ES', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                }),
+                available: !isOccupied,
+                period
+            });
+            id++;
         }
 
-        // Filtrar solo slots disponibles
-        return slots.filter(slot => slot.available);
+        console.log(`Total de slots generados para ${period}: ${slots.length}`);
+        return slots;
+    }
+
+    // Método para obtener slots de hoy
+    async getAvailableSlotsForToday(events: any[] = []) {
+        const now = new Date();
+        console.log(`Fecha actual: ${now.toISOString()}`);
+        
+        const currentHour = now.getHours();
+        const currentMinutes = now.getMinutes();
+        console.log(`Hora actual: ${currentHour}:${currentMinutes}`);
+        
+        // Generar slots para la mañana
+        const morningSlots = this.generateSlotsForRange(
+            now, 
+            this.MORNING_START, 
+            this.MORNING_END, 
+            events, 
+            true,
+            currentHour,
+            currentMinutes,
+            'mañana',
+            1
+        );
+        
+        // Generar slots para la tarde
+        const afternoonSlots = this.generateSlotsForRange(
+            now, 
+            this.AFTERNOON_START, 
+            this.AFTERNOON_END, 
+            events, 
+            true,
+            currentHour,
+            currentMinutes,
+            'tarde',
+            morningSlots.length + 1
+        );
+        
+        // Combinar todos los slots
+        const allSlots = [...morningSlots, ...afternoonSlots];
+        console.log(`Total de slots generados: ${allSlots.length}`);
+        
+        // Filtrar solo disponibles
+        const availableSlots = allSlots.filter(slot => slot.available);
+        console.log(`Total de slots disponibles: ${availableSlots.length}`);
+        
+        return availableSlots;
     }
 
     // Método principal para obtener slots disponibles
@@ -85,7 +165,18 @@ export class AppointmentsService {
                 return this.getAvailableSlotsForToday(events);
             }
             
-            const date = new Date(inputDate);
+            // Parsear la fecha de entrada correctamente
+            let date: Date;
+            
+            if (inputDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                // Si es formato YYYY-MM-DD, parsearlo correctamente
+                const [year, month, day] = inputDate.split('-').map(Number);
+                date = new Date(year, month - 1, day); // Mes es 0-indexado en JavaScript
+            } else {
+                date = new Date(inputDate);
+            }
+            
+            console.log(`Fecha solicitada: ${inputDate} -> Parseada como: ${date.toISOString()}`);
             
             // Verificar si la fecha es válida
             if (isNaN(date.getTime())) {
@@ -94,10 +185,13 @@ export class AppointmentsService {
             }
             
             const now = new Date();
+            // Establecer today a las 00:00:00 para comparación correcta
             const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             
             // Establecer la fecha a las 00:00:00 para comparación correcta
             const dateToCheck = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            
+            console.log(`Comparando fechas - Hoy: ${today.toISOString()} - Solicitada: ${dateToCheck.toISOString()}`);
             
             // Permitir fechas futuras, pero no anteriores a hoy
             if (dateToCheck < today) {
@@ -107,41 +201,52 @@ export class AppointmentsService {
 
             const currentHour = now.getHours();
             const currentMinutes = now.getMinutes();
+            
+            // Verificar si la fecha solicitada es hoy o una fecha futura
             const isToday = dateToCheck.getTime() === today.getTime();
+            
+            console.log(`Es hoy: ${isToday} - Hora actual: ${currentHour}:${currentMinutes}`);
 
-            const slots = [];
-            let id = 1;
+            // Para fechas futuras, no filtrar por hora actual
+            const effectiveHour = isToday ? currentHour : 0;
+            const effectiveMinutes = isToday ? currentMinutes : 0;
 
-            for (let hour = this.START_HOUR; hour <= this.END_HOUR; hour++) {
-                for (const minutes of [0, 30]) {
-                    // Solo filtrar por hora actual si es hoy
-                    if (isToday && (hour < currentHour || (hour === currentHour && minutes <= currentMinutes))) {
-                        continue;
-                    }
-
-                    const time = new Date(date);
-                    time.setHours(hour, minutes, 0, 0);
-                    
-                    const isOccupied = this.isSlotOccupied(time, events);
-                    
-                    slots.push({
-                        id,
-                        time: time.toISOString(),
-                        displayTime: `${hour}:${minutes === 0 ? '00' : '30'}`,
-                        displayDate: time.toLocaleDateString('es-ES', {
-                            weekday: 'long',
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                        }),
-                        available: !isOccupied
-                    });
-                    id++;
-                }
-            }
-
-            // Filtrar solo slots disponibles
-            return slots.filter(slot => slot.available);
+            // Generar slots para la mañana
+            const morningSlots = this.generateSlotsForRange(
+                date, 
+                this.MORNING_START, 
+                this.MORNING_END, 
+                events, 
+                isToday,  // Solo aplicar filtro de hora si es hoy
+                effectiveHour,
+                effectiveMinutes,
+                'mañana',
+                1
+            );
+            
+            // Generar slots para la tarde
+            const afternoonSlots = this.generateSlotsForRange(
+                date, 
+                this.AFTERNOON_START, 
+                this.AFTERNOON_END, 
+                events, 
+                isToday,  // Solo aplicar filtro de hora si es hoy
+                effectiveHour,
+                effectiveMinutes,
+                'tarde',
+                morningSlots.length + 1
+            );
+            
+            // Combinar todos los slots
+            const allSlots = [...morningSlots, ...afternoonSlots];
+            
+            // Filtrar solo disponibles
+            const availableSlots = allSlots.filter(slot => slot.available);
+            
+            console.log(`Slots de mañana: ${morningSlots.length}, Slots de tarde: ${afternoonSlots.length}`);
+            console.log(`Total disponibles: ${availableSlots.length}`);
+            
+            return availableSlots;
         } catch (error) {
             console.error('Error en getAvailableTimeSlots:', error);
             throw error;
