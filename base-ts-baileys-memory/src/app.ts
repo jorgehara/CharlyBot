@@ -170,11 +170,127 @@ const agendarFlow = addKeyword('1')
  * Flujo de cancelación
  */
 const cancelacionFlow = addKeyword('3')
-    .addAnswer([
-        `aqui debo traer los turnos para avisar la cancelacion o el cambio de fecha`,
-        `tambien debo avisar cuando se confirma el turno`,
-        `tambien debo avisar cuando se cancela el turno`
-    ].join('\n'));
+    .addAnswer(
+        [
+            '📅 ¿Para qué fecha quieres ver/cancelar tus citas?',
+            'Escribe la fecha en formato YYYY-MM-DD',
+            'O presiona ENTER para ver las citas de hoy'
+        ].join('\n'),
+        { capture: true }, 
+        async (ctx, { flowDynamic }) => {
+            try {
+                const inputDate = ctx.body.trim() === '' ? new Date().toISOString().split('T')[0] : ctx.body;
+                
+                // Validar formato de fecha
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(inputDate)) {
+                    await flowDynamic('❌ Formato de fecha inválido. Por favor, usa el formato YYYY-MM-DD.');
+                    return;
+                }
+                
+                // Crear fecha de inicio (00:00:00)
+                const [year, month, day] = inputDate.split('-').map(Number);
+                const selectedDate = new Date(year, month - 1, day);
+                selectedDate.setHours(0, 0, 0, 0);
+                
+                // Crear fecha de fin (23:59:59)
+                const endDate = new Date(selectedDate);
+                endDate.setHours(23, 59, 59, 999);
+                
+                // Buscar eventos en ese rango de tiempo
+                const events = await calendarService.findEventsByTimeRange(
+                    CALENDAR_ID!,
+                    selectedDate.toISOString(),
+                    endDate.toISOString()
+                );
+                
+                if (!events || events.length === 0) {
+                    await flowDynamic(`❌ No hay citas programadas para el ${selectedDate.toLocaleDateString('es-ES', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    })}.`);
+                    return;
+                }
+                
+                // Formatear eventos para mostrar
+                const eventsMessage = events.map((event, index) => {
+                    const startTime = new Date(event.start.dateTime);
+                    return `${index + 1}. ${event.summary} - ${startTime.toLocaleTimeString('es-ES', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    })} - ID: ${event.id}`;
+                }).join('\n');
+                
+                await flowDynamic([
+                    `📅 Citas para el ${selectedDate.toLocaleDateString('es-ES', {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    })}:`,
+                    '',
+                    eventsMessage,
+                    '',
+                    'Para cancelar una cita, escribe "cancelar" seguido del número de la cita.',
+                    'Ejemplo: cancelar 1'
+                ].join('\n'));
+            } catch (error) {
+                console.error('Error al obtener citas:', error);
+                await flowDynamic('❌ Hubo un error al obtener las citas. Por favor, intenta más tarde.');
+            }
+        }
+    )
+    .addAction({ capture: true }, async (ctx, { flowDynamic }) => {
+        const message = ctx.body.toLowerCase();
+        
+        if (!message.startsWith('cancelar')) {
+            await flowDynamic('❌ Comando no reconocido. Para cancelar una cita, escribe "cancelar" seguido del número de la cita.');
+            return;
+        }
+        
+        try {
+            const eventNumber = parseInt(message.replace('cancelar', '').trim());
+            
+            if (isNaN(eventNumber)) {
+                await flowDynamic('❌ Número de cita inválido. Por favor, escribe "cancelar" seguido del número de la cita.');
+                return;
+            }
+            
+            // Obtener eventos nuevamente
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const endDay = new Date(today);
+            endDay.setHours(23, 59, 59, 999);
+            
+            const events = await calendarService.findEventsByTimeRange(
+                CALENDAR_ID!,
+                today.toISOString(),
+                endDay.toISOString()
+            );
+            
+            if (!events || events.length === 0 || eventNumber > events.length) {
+                await flowDynamic('❌ Número de cita inválido o no hay citas disponibles para cancelar.');
+                return;
+            }
+            
+            const eventToCancel = events[eventNumber - 1];
+            await calendarService.deleteEvent(CALENDAR_ID!, eventToCancel.id);
+            
+            await flowDynamic([
+                '✅ Cita cancelada exitosamente:',
+                `📅 ${eventToCancel.summary}`,
+                `⏰ ${new Date(eventToCancel.start.dateTime).toLocaleTimeString('es-ES', {
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })}`
+            ].join('\n'));
+        } catch (error) {
+            console.error('Error al cancelar cita:', error);
+            await flowDynamic('❌ Hubo un error al cancelar la cita. Por favor, intenta más tarde.');
+        }
+    });
 
 /**
  * Configuración del servidor HTTP con endpoints
@@ -386,6 +502,184 @@ const setupServer = (adapterProvider: any, handleCtx: any) => {
             };
             
             res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify(errorResponse));
+        }
+    });
+
+    // Endpoint para eliminar un evento por ID
+    server.delete('/api/calendar/events/:eventId', async (req, res) => {
+        try {
+            const { eventId } = req.params;
+            
+            if (!eventId) {
+                const errorResponse = {
+                    success: false,
+                    message: 'ID de evento requerido'
+                };
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify(errorResponse));
+            }
+            
+            console.log(`Solicitud para eliminar evento con ID: ${eventId}`);
+            
+            const result = await calendarService.deleteEvent(CALENDAR_ID!, eventId);
+            
+            const responseData = {
+                success: true,
+                message: 'Evento eliminado correctamente',
+                eventId
+            };
+            
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify(responseData));
+        } catch (error: any) {
+            console.error('Error al eliminar evento:', error);
+            
+            const errorResponse = {
+                success: false,
+                message: error.message || 'Error al eliminar el evento'
+            };
+            
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify(errorResponse));
+        }
+    });
+
+    // Endpoint para eliminar un evento por fecha y hora (usando query params)
+    server.delete('/api/calendar/events-by-time', async (req, res) => {
+        try {
+            const { date, time } = req.query;
+            
+            if (!date || !time) {
+                const errorResponse = {
+                    success: false,
+                    message: 'Fecha y hora requeridas'
+                };
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify(errorResponse));
+            }
+            
+            console.log(`Solicitud para eliminar evento en fecha: ${date}, hora: ${time}`);
+            
+            // Crear fecha y hora de inicio
+            const startDateTime = new Date(`${date}T${time}`);
+            
+            // Crear fecha y hora de fin (30 minutos después)
+            const endDateTime = new Date(startDateTime.getTime() + 30 * 60000);
+            
+            // Buscar eventos en ese rango de tiempo
+            const events = await calendarService.findEventsByTimeRange(
+                CALENDAR_ID!,
+                startDateTime.toISOString(),
+                endDateTime.toISOString()
+            );
+            
+            if (!events || events.length === 0) {
+                const errorResponse = {
+                    success: false,
+                    message: 'No se encontraron eventos en el horario especificado'
+                };
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify(errorResponse));
+            }
+            
+            // Eliminar el primer evento encontrado
+            const eventToDelete = events[0];
+            await calendarService.deleteEvent(CALENDAR_ID!, eventToDelete.id);
+            
+            const responseData = {
+                success: true,
+                message: 'Evento eliminado correctamente',
+                event: {
+                    id: eventToDelete.id,
+                    summary: eventToDelete.summary,
+                    start: eventToDelete.start,
+                    end: eventToDelete.end
+                }
+            };
+            
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify(responseData));
+        } catch (error: any) {
+            console.error('Error al eliminar evento por fecha y hora:', error);
+            
+            const errorResponse = {
+                success: false,
+                message: error.message || 'Error al eliminar el evento'
+            };
+            
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify(errorResponse));
+        }
+    });
+
+    // Endpoint para listar eventos de un día específico
+    server.get('/api/calendar/events', async (req, res) => {
+        try {
+            const { date } = req.query;
+            
+            if (!date) {
+                const errorResponse = {
+                    success: false,
+                    message: 'Fecha requerida'
+                };
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify(errorResponse));
+            }
+            
+            console.log(`Solicitud para listar eventos en fecha: ${date}`);
+            
+            // Crear fecha de inicio (00:00:00)
+            let selectedDate;
+            if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const [year, month, day] = date.split('-').map(Number);
+                selectedDate = new Date(year, month - 1, day);
+            } else {
+                selectedDate = new Date(date as string);
+            }
+            
+            selectedDate.setHours(0, 0, 0, 0);
+            
+            // Crear fecha de fin (23:59:59)
+            const endDate = new Date(selectedDate);
+            endDate.setHours(23, 59, 59, 999);
+            
+            // Buscar eventos en ese rango de tiempo
+            const events = await calendarService.findEventsByTimeRange(
+                CALENDAR_ID!,
+                selectedDate.toISOString(),
+                endDate.toISOString()
+            );
+            
+            // Formatear eventos para la respuesta
+            const formattedEvents = events.map(event => ({
+                id: event.id,
+                summary: event.summary,
+                description: event.description,
+                start: event.start,
+                end: event.end,
+                created: event.created,
+                updated: event.updated,
+                status: event.status
+            }));
+            
+            const responseData = {
+                success: true,
+                date: date,
+                events: formattedEvents
+            };
+            
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify(responseData));
+        } catch (error: any) {
+            console.error('Error al listar eventos:', error);
+            
+            const errorResponse = {
+                success: false,
+                message: error.message || 'Error al listar eventos'
+            };
+            
+            res.writeHead(500, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify(errorResponse));
         }
     });

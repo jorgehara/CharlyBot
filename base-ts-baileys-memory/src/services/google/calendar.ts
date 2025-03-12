@@ -64,4 +64,61 @@ export class GoogleCalendarService {
             return [];
         }
     }
+
+    /**
+     * Elimina un evento del calendario por su ID
+     * @param calendarId ID del calendario
+     * @param eventId ID del evento a eliminar
+     * @returns Resultado de la operación
+     */
+    async deleteEvent(calendarId: string, eventId: string) {
+        try {
+            // Asegurarse de que el calendario esté inicializado
+            if (!this.calendar) {
+                await this.init();
+            }
+            
+            const response = await this.calendar.events.delete({
+                calendarId,
+                eventId
+            });
+            
+            return {
+                success: true,
+                message: 'Evento eliminado correctamente'
+            };
+        } catch (error) {
+            console.error('Error al eliminar evento de Google Calendar:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Busca eventos en un rango de tiempo específico
+     * @param calendarId ID del calendario
+     * @param startDateTime Fecha y hora de inicio (ISO string)
+     * @param endDateTime Fecha y hora de fin (ISO string)
+     * @returns Lista de eventos encontrados
+     */
+    async findEventsByTimeRange(calendarId: string, startDateTime: string, endDateTime: string) {
+        try {
+            // Asegurarse de que el calendario esté inicializado
+            if (!this.calendar) {
+                await this.init();
+            }
+            
+            const response = await this.calendar.events.list({
+                calendarId,
+                timeMin: startDateTime,
+                timeMax: endDateTime,
+                singleEvents: true,
+                orderBy: 'startTime',
+            });
+            
+            return response.data.items || [];
+        } catch (error) {
+            console.error('Error al buscar eventos por rango de tiempo:', error);
+            throw error;
+        }
+    }
 }
