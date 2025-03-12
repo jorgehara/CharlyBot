@@ -36,17 +36,32 @@ export class GoogleCalendarService {
 
     async listEvents(calendarId: string, timeMin: Date) {
         try {
+            // Asegurarse de que el calendario esté inicializado
+            if (!this.calendar) {
+                await this.init();
+            }
+            
+            // Crear una copia de la fecha y establecerla al inicio del día
+            const startOfDay = new Date(timeMin);
+            startOfDay.setHours(0, 0, 0, 0);
+            
+            // Crear una fecha para el final del día
+            const endOfDay = new Date(timeMin);
+            endOfDay.setHours(23, 59, 59, 999);
+            
             const response = await this.calendar.events.list({
                 calendarId,
-                timeMin: timeMin.toISOString(),
-                maxResults: 10,
+                timeMin: startOfDay.toISOString(),
+                timeMax: endOfDay.toISOString(),
                 singleEvents: true,
                 orderBy: 'startTime',
             });
-            return response.data.items;
+            
+            return response.data.items || [];
         } catch (error) {
             console.error('Error al listar eventos de Google Calendar:', error);
-            throw error;
+            // Devolver un array vacío en caso de error para no interrumpir el flujo
+            return [];
         }
     }
 }
