@@ -18,13 +18,14 @@ const SHEET_RANGE = process.env.SHEET_RANGE;
  * Flujo de bienvenida
  */
 const welcomeFlow = addKeyword<BaileysProvider, MemoryDB>(['hola', 'ole', 'alo'])
-    .addAnswer('🤖 ¡Hola! Bienvenido al chatbot')
+    .addAnswer(
+`🏥 Bienvenido al Consultorio del Dr. Kulinka 🏥
+¿En qué puedo ayudarte hoy? 😊`)
     .addAnswer(
         [
-            'Puedes utilizar los siguientes comandos:',
-            '👉 *registrar* - Para guardar información en Google Sheets',
-            '👉 *agendar* - Para crear un evento en Google Calendar',
-            '👉 *ayuda* - Para ver este menú nuevamente'
+        `1️⃣ Agendar   → Para solicitar un turno.`,
+        `2️⃣ Consultar → Para obtener información sobre nuestros servicios.`,
+        `3️⃣ Cancelar  → Para cancelar una cita ya agendada.`
         ].join('\n')
     );
 
