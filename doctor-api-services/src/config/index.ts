@@ -2,7 +2,7 @@ import 'dotenv/config';
 import path from 'path';
 
 export default {
-  port: process.env.PORT || 3000,
+  port: process.env.PORT || 3001,
   google: {
     spreadsheetId: process.env.SPREADSHEET_ID,
     sheetRange: process.env.SHEET_RANGE,
