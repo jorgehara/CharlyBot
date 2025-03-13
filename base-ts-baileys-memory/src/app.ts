@@ -1,6 +1,10 @@
 import 'dotenv/config';
 import { createBot, createProvider, createFlow, addKeyword, EVENTS, MemoryDB } from '@builderbot/bot';
 import { BaileysProvider } from '@builderbot/provider-baileys';
+import express from 'express';
+import { join } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
 
 import { AppointmentsService } from './services/appointments';
 import { GoogleSheetsService } from './services/google/sheets';
@@ -15,10 +19,20 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 const SHEET_RANGE = process.env.SHEET_RANGE;
 const CALENDAR_ID = process.env.CALENDAR_ID;
 
+// Configuración de rutas para archivos estáticos
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const pdfFolderPath = join(__dirname, '../pdfs');
+
+// Crear la aplicación Express
+const app = express();
+app.use(express.json());
+app.use('/pdfs', express.static(pdfFolderPath));
+
 /**
  * Flujo de bienvenida
  */
-const welcomeFlow = addKeyword<BaileysProvider, MemoryDB>(['hola', 'ole', 'alo'])
+const welcomeFlow = addKeyword<BaileysProvider, MemoryDB>(['hola', 'ole', 'alo', 'buenas', 'buenos días', 'buenas tardes', 'buenas noches'])
     .addAnswer(
 `🏥 Bienvenido al Consultorio del Dr. Kulinka 🏥
 ¿En qué puedo ayudarte hoy? 😊`)
@@ -151,17 +165,17 @@ const agendarFlow = addKeyword('1')
                     }
                 });
 
-                // Al mostrar el mensaje usamos displayTime
                 await flowDynamic([
-                    '✅ ¡Cita agendada exitosamente!',
-                    `👤 Cliente: ${state.get('clientName')}`,
-                    `📅 Fecha y hora: ${selectedSlot.displayTime}`,
-                    '¡Te esperamos!'
+                    '✅ ¡Cita agendada con éxito!',
+                    `📅 Fecha: ${selectedSlot.displayDate}`,
+                    `⏰ Hora: ${selectedSlot.displayTime}`,
+                    `👤 Nombre: ${state.get('clientName')}`,
+                    '',
+                    'Te esperamos en nuestra consulta. Por favor, llega 10 minutos antes de tu cita.'
                 ].join('\n'));
-
             } catch (error) {
-                console.error('Error al agendar:', error);
-                await flowDynamic('❌ Hubo un error al agendar la cita. Por favor, intenta nuevamente.');
+                console.error('Error al agendar cita:', error);
+                await flowDynamic('❌ Hubo un error al agendar tu cita. Por favor, intenta más tarde.');
             }
         }
     );
@@ -292,454 +306,423 @@ const cancelacionFlow = addKeyword('3')
         }
     });
 
-/**
- * Configuración del servidor HTTP con endpoints
- */
-const setupServer = (adapterProvider: any, handleCtx: any) => {
-    const server = adapterProvider.server;
-
-    // Endpoint de prueba simple
-    server.get('/api/ping', (req, res) => {
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('pong');
-    });
-
-    // Endpoint para probar JSON
-    server.get('/api/json-test', (req, res) => {
-        const data = {
-            message: 'Esto es una respuesta JSON',
-            timestamp: new Date().toISOString(),
-            success: true
-        };
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(data));
-    });
-
-    // Endpoint para probar parámetros
-    server.get('/api/echo', (req, res) => {
-        const data = {
-            params: req.query,
-            success: true
-        };
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(data));
-    });
-
-    // Endpoint para probar POST
-    server.post('/api/echo-post', (req, res) => {
-        const data = {
-            body: req.body,
-            success: true
-        };
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(data));
-    });
-
-    // Endpoint para obtener slots simplificado
-    server.get('/api/slots', (req, res) => {
-        try {
-            // Generar slots de ejemplo para hoy
-            const today = new Date();
-            const slots = [];
-            
-            for (let hour = 9; hour <= 17; hour++) {
-                for (const minutes of [0, 30]) {
-                    const time = new Date(today);
-                    time.setHours(hour, minutes, 0, 0);
-                    
-                    // Solo incluir horas futuras
-                    if (time > new Date()) {
-                        slots.push({
-                            id: slots.length + 1,
-                            time: time.toISOString(),
-                            displayTime: `${hour}:${minutes === 0 ? '00' : '30'}`,
-                            available: true
-                        });
-                    }
-                }
-            }
-            
-            const responseData = {
-                success: true,
-                message: 'Slots generados correctamente',
-                date: today.toISOString().split('T')[0],
-                slots: slots
-            };
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(responseData));
-        } catch (error) {
-            console.error('Error:', error);
-            const errorResponse = {
-                success: false,
-                message: 'Error interno del servidor'
-            };
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(errorResponse));
-        }
-    });
-
-    // Endpoint para crear eventos en el calendario
-    server.post('/api/calendar/events', async (req, res) => {
-        try {
-            const { clientName, date, time, phone } = req.body;
-
-            if (!clientName || !date || !time) {
+// Configurar endpoints de API
+// Endpoint para obtener horarios disponibles
+app.get('/api/calendar/available-slots', async (req, res) => {
+    try {
+        const { date } = req.query;
+        console.log(`Solicitud de horarios para fecha: ${date || 'hoy'}`);
+        
+        // Validar formato de fecha si se proporciona
+        if (date && typeof date === 'string' && date.trim() !== '') {
+            const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+            if (!dateRegex.test(date)) {
                 const errorResponse = {
                     success: false,
-                    message: 'Faltan datos requeridos'
+                    message: 'Formato de fecha inválido. Use YYYY-MM-DD'
                 };
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 return res.end(JSON.stringify(errorResponse));
             }
-
-            // Crear fecha del evento
-            const startTime = new Date(`${date}T${time}`);
-            const endTime = new Date(startTime.getTime() + 30 * 60000);
-
-            const event = await calendarService.createEvent(CALENDAR_ID!, {
-                summary: `Cita - ${clientName}`,
-                description: `Cita agendada por: ${clientName}\nTeléfono: ${phone}`,
-                start: { 
-                    dateTime: startTime.toISOString(),
-                    timeZone: process.env.TIMEZONE || 'America/Argentina/Buenos_Aires'
-                },
-                end: { 
-                    dateTime: endTime.toISOString(),
-                    timeZone: process.env.TIMEZONE || 'America/Argentina/Buenos_Aires'
-                }
-            });
-
-            const successResponse = {
-                success: true,
-                message: 'Evento creado exitosamente',
-                event: event
-            };
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify(successResponse));
-        } catch (error: any) {
-            console.error('Error al crear evento:', error);
-            
-            const errorResponse = {
-                success: false,
-                message: 'Error al crear el evento',
-                error: error.message
-            };
-            
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify(errorResponse));
         }
-    });
+        
+        // Obtener eventos existentes del calendario para verificar disponibilidad
+        let selectedDate;
+        if (date) {
+            // Crear la fecha a partir del string YYYY-MM-DD
+            const [year, month, day] = (date as string).split('-').map(Number);
+            selectedDate = new Date(year, month - 1, day); // Mes es 0-indexado en JavaScript
+            
+            // Asegurarse de que la fecha sea correcta (sin ajustes de zona horaria)
+            selectedDate.setHours(0, 0, 0, 0);
+            console.log(`Fecha seleccionada parseada: ${selectedDate.toISOString()}`);
+        } else {
+            selectedDate = new Date();
+        }
+        
+        const existingEvents = await calendarService.listEvents(CALENDAR_ID!, selectedDate);
+        console.log(`Eventos existentes: ${existingEvents.length}`);
+        
+        // Obtener slots disponibles considerando los eventos existentes
+        const availableSlots = await appointmentService.getAvailableTimeSlots(
+            date as string,
+            existingEvents
+        );
 
-    // Endpoint para obtener horarios disponibles
-    server.get('/api/calendar/available-slots', async (req, res) => {
-        try {
-            const { date } = req.query;
-            console.log(`Solicitud de horarios para fecha: ${date || 'hoy'}`);
-            
-            // Validar formato de fecha si se proporciona
-            if (date && typeof date === 'string' && date.trim() !== '') {
-                const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-                if (!dateRegex.test(date)) {
-                    const errorResponse = {
-                        success: false,
-                        message: 'Formato de fecha inválido. Use YYYY-MM-DD'
-                    };
-                    res.writeHead(400, { 'Content-Type': 'application/json' });
-                    return res.end(JSON.stringify(errorResponse));
-                }
-            }
-            
-            // Obtener eventos existentes del calendario para verificar disponibilidad
-            let selectedDate;
-            if (date) {
-                // Crear la fecha a partir del string YYYY-MM-DD
-                const [year, month, day] = (date as string).split('-').map(Number);
-                selectedDate = new Date(year, month - 1, day); // Mes es 0-indexado en JavaScript
-                
-                // Asegurarse de que la fecha sea correcta (sin ajustes de zona horaria)
-                selectedDate.setHours(0, 0, 0, 0);
-                console.log(`Fecha seleccionada parseada: ${selectedDate.toISOString()}`);
-            } else {
-                selectedDate = new Date();
-            }
-            
-            const existingEvents = await calendarService.listEvents(CALENDAR_ID!, selectedDate);
-            console.log(`Eventos existentes: ${existingEvents.length}`);
-            
-            // Obtener slots disponibles considerando los eventos existentes
-            const availableSlots = await appointmentService.getAvailableTimeSlots(
-                date as string,
-                existingEvents
-            );
+        // Agrupar slots por período
+        const morningSlots = availableSlots.filter(slot => slot.period === 'mañana');
+        const afternoonSlots = availableSlots.filter(slot => slot.period === 'tarde');
+        
+        console.log(`Slots mañana: ${morningSlots.length}, Slots tarde: ${afternoonSlots.length}`);
 
-            // Agrupar slots por período
-            const morningSlots = availableSlots.filter(slot => slot.period === 'mañana');
-            const afternoonSlots = availableSlots.filter(slot => slot.period === 'tarde');
-            
-            console.log(`Slots mañana: ${morningSlots.length}, Slots tarde: ${afternoonSlots.length}`);
+        const responseData = {
+            success: true,
+            date: date || 'hoy',
+            displayDate: availableSlots.length > 0 ? availableSlots[0].displayDate : new Date().toLocaleDateString('es-ES'),
+            slots: {
+                morning: morningSlots,
+                afternoon: afternoonSlots
+            },
+            allSlots: availableSlots
+        };
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(responseData));
+    } catch (error: any) {
+        console.error('Error al obtener horarios:', error);
+        
+        const errorResponse = {
+            success: false,
+            message: error.message || 'Error al obtener horarios disponibles'
+        };
+        
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(errorResponse));
+    }
+});
 
-            const responseData = {
-                success: true,
-                date: date || 'hoy',
-                displayDate: availableSlots.length > 0 ? availableSlots[0].displayDate : new Date().toLocaleDateString('es-ES'),
-                slots: {
-                    morning: morningSlots,
-                    afternoon: afternoonSlots
-                },
-                allSlots: availableSlots
-            };
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify(responseData));
-        } catch (error: any) {
-            console.error('Error al obtener horarios:', error);
-            
+// Endpoint para crear un evento
+app.post('/api/calendar/events', async (req, res) => {
+    try {
+        const { clientName, date, time, phone } = req.body;
+        
+        if (!clientName || !date || !time) {
             const errorResponse = {
                 success: false,
-                message: error.message || 'Error al obtener horarios disponibles'
+                message: 'Nombre, fecha y hora son requeridos'
             };
-            
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify(errorResponse));
         }
-    });
-
-    // Endpoint para eliminar un evento por ID
-    server.delete('/api/calendar/events/:eventId', async (req, res) => {
-        try {
-            const { eventId } = req.params;
-            
-            if (!eventId) {
-                const errorResponse = {
-                    success: false,
-                    message: 'ID de evento requerido'
-                };
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify(errorResponse));
+        
+        console.log(`Solicitud para crear evento: ${clientName}, ${date}, ${time}`);
+        
+        // Crear fecha y hora de inicio
+        const startTime = new Date(`${date}T${time}`);
+        
+        // Crear fecha y hora de fin (30 minutos después)
+        const endTime = new Date(startTime.getTime() + 30 * 60000);
+        
+        const event = await calendarService.createEvent(CALENDAR_ID!, {
+            summary: `Cita - ${clientName}`,
+            description: `Cita agendada por: ${clientName}\nTeléfono: ${phone || 'No proporcionado'}`,
+            start: { 
+                dateTime: startTime.toISOString(),
+                timeZone: process.env.TIMEZONE || 'America/Argentina/Buenos_Aires'
+            },
+            end: { 
+                dateTime: endTime.toISOString(),
+                timeZone: process.env.TIMEZONE || 'America/Argentina/Buenos_Aires'
             }
-            
-            console.log(`Solicitud para eliminar evento con ID: ${eventId}`);
-            
-            const result = await calendarService.deleteEvent(CALENDAR_ID!, eventId);
-            
-            const responseData = {
-                success: true,
-                message: 'Evento eliminado correctamente',
-                eventId
-            };
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify(responseData));
-        } catch (error: any) {
-            console.error('Error al eliminar evento:', error);
-            
-            const errorResponse = {
-                success: false,
-                message: error.message || 'Error al eliminar el evento'
-            };
-            
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify(errorResponse));
-        }
-    });
-
-    // Endpoint para eliminar un evento por fecha y hora (usando query params)
-    server.delete('/api/calendar/events-by-time', async (req, res) => {
-        try {
-            const { date, time } = req.query;
-            
-            if (!date || !time) {
-                const errorResponse = {
-                    success: false,
-                    message: 'Fecha y hora requeridas'
-                };
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify(errorResponse));
-            }
-            
-            console.log(`Solicitud para eliminar evento en fecha: ${date}, hora: ${time}`);
-            
-            // Crear fecha y hora de inicio
-            const startDateTime = new Date(`${date}T${time}`);
-            
-            // Crear fecha y hora de fin (30 minutos después)
-            const endDateTime = new Date(startDateTime.getTime() + 30 * 60000);
-            
-            // Buscar eventos en ese rango de tiempo
-            const events = await calendarService.findEventsByTimeRange(
-                CALENDAR_ID!,
-                startDateTime.toISOString(),
-                endDateTime.toISOString()
-            );
-            
-            if (!events || events.length === 0) {
-                const errorResponse = {
-                    success: false,
-                    message: 'No se encontraron eventos en el horario especificado'
-                };
-                res.writeHead(404, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify(errorResponse));
-            }
-            
-            // Eliminar el primer evento encontrado
-            const eventToDelete = events[0];
-            await calendarService.deleteEvent(CALENDAR_ID!, eventToDelete.id);
-            
-            const responseData = {
-                success: true,
-                message: 'Evento eliminado correctamente',
-                event: {
-                    id: eventToDelete.id,
-                    summary: eventToDelete.summary,
-                    start: eventToDelete.start,
-                    end: eventToDelete.end
-                }
-            };
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify(responseData));
-        } catch (error: any) {
-            console.error('Error al eliminar evento por fecha y hora:', error);
-            
-            const errorResponse = {
-                success: false,
-                message: error.message || 'Error al eliminar el evento'
-            };
-            
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify(errorResponse));
-        }
-    });
-
-    // Endpoint para listar eventos de un día específico
-    server.get('/api/calendar/events', async (req, res) => {
-        try {
-            const { date } = req.query;
-            
-            if (!date) {
-                const errorResponse = {
-                    success: false,
-                    message: 'Fecha requerida'
-                };
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify(errorResponse));
-            }
-            
-            console.log(`Solicitud para listar eventos en fecha: ${date}`);
-            
-            // Crear fecha de inicio (00:00:00)
-            let selectedDate;
-            if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                const [year, month, day] = date.split('-').map(Number);
-                selectedDate = new Date(year, month - 1, day);
-            } else {
-                selectedDate = new Date(date as string);
-            }
-            
-            selectedDate.setHours(0, 0, 0, 0);
-            
-            // Crear fecha de fin (23:59:59)
-            const endDate = new Date(selectedDate);
-            endDate.setHours(23, 59, 59, 999);
-            
-            // Buscar eventos en ese rango de tiempo
-            const events = await calendarService.findEventsByTimeRange(
-                CALENDAR_ID!,
-                selectedDate.toISOString(),
-                endDate.toISOString()
-            );
-            
-            // Formatear eventos para la respuesta
-            const formattedEvents = events.map(event => ({
+        });
+        
+        const responseData = {
+            success: true,
+            message: 'Evento creado correctamente',
+            event: {
                 id: event.id,
                 summary: event.summary,
-                description: event.description,
                 start: event.start,
-                end: event.end,
-                created: event.created,
-                updated: event.updated,
-                status: event.status
-            }));
-            
-            const responseData = {
-                success: true,
-                date: date,
-                events: formattedEvents
-            };
-            
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify(responseData));
-        } catch (error: any) {
-            console.error('Error al listar eventos:', error);
-            
+                end: event.end
+            }
+        };
+        
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(responseData));
+    } catch (error: any) {
+        console.error('Error al crear evento:', error);
+        
+        const errorResponse = {
+            success: false,
+            message: error.message || 'Error al crear el evento'
+        };
+        
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(errorResponse));
+    }
+});
+
+// Endpoint para eliminar un evento por ID
+app.delete('/api/calendar/events/:eventId', async (req, res) => {
+    try {
+        const { eventId } = req.params;
+        
+        if (!eventId) {
             const errorResponse = {
                 success: false,
-                message: error.message || 'Error al listar eventos'
+                message: 'ID de evento requerido'
             };
-            
-            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify(errorResponse));
         }
-    });
-
-    // Endpoint para mensajes de WhatsApp
-    server.post('/v1/messages', handleCtx(async (bot, req, res) => {
-        const { number, message } = req.body
-        await bot.sendMessage(number, message, {})
-        return res.end('send')
-    }));
-
-    return server;
-};
-
-/**
- * Función principal
- */
-const main = async () => {
-    try {
-        const adapterFlow = createFlow([
-            welcomeFlow,
-            registrarConsultasFlow,
-            agendarFlow,
-            cancelacionFlow,
-        ]);
-
-        const adapterDB = new MemoryDB()
-        const adapterProvider = createProvider(BaileysProvider, {
-            qrMobileColumns: 2,
-            showQrInTerminal: true,
-            showBrowserLogs: false
-        })
-    
-        const { handleCtx, httpServer } = await createBot({
-            flow: adapterFlow,
-            provider: adapterProvider,
-            database: adapterDB,
-        })
-    
-        // Configurar servidor con endpoints
-        const server = setupServer(adapterProvider, handleCtx);
-        server.listen(3000, () => {
-            console.log('Servidor escuchando en puerto 3000');
-        });
-
-        // Manejador de eventos de conexión
-        adapterProvider.on('connection.update', (update) => {
-            const { connection } = update
-            if(connection === 'open') {
-                console.log('¡Conexión establecida!')
-            }
-        });
-
-    } catch (error) {
-        console.error('Error al iniciar el bot:', error);
-        throw error;
+        
+        console.log(`Solicitud para eliminar evento con ID: ${eventId}`);
+        
+        const result = await calendarService.deleteEvent(CALENDAR_ID!, eventId);
+        
+        const responseData = {
+            success: true,
+            message: 'Evento eliminado correctamente',
+            eventId
+        };
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(responseData));
+    } catch (error: any) {
+        console.error('Error al eliminar evento:', error);
+        
+        const errorResponse = {
+            success: false,
+            message: error.message || 'Error al eliminar el evento'
+        };
+        
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(errorResponse));
     }
-};
+});
 
-main();
+// Endpoint para eliminar un evento por fecha y hora (usando query params)
+app.delete('/api/calendar/events-by-time', async (req, res) => {
+    try {
+        const { date, time } = req.query;
+        
+        if (!date || !time) {
+            const errorResponse = {
+                success: false,
+                message: 'Fecha y hora requeridas'
+            };
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify(errorResponse));
+        }
+        
+        console.log(`Solicitud para eliminar evento en fecha: ${date}, hora: ${time}`);
+        
+        // Crear fecha y hora de inicio
+        const startDateTime = new Date(`${date}T${time}`);
+        
+        // Crear fecha y hora de fin (30 minutos después)
+        const endDateTime = new Date(startDateTime.getTime() + 30 * 60000);
+        
+        // Buscar eventos en ese rango de tiempo
+        const events = await calendarService.findEventsByTimeRange(
+            CALENDAR_ID!,
+            startDateTime.toISOString(),
+            endDateTime.toISOString()
+        );
+        
+        if (!events || events.length === 0) {
+            const errorResponse = {
+                success: false,
+                message: 'No se encontraron eventos en el horario especificado'
+            };
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify(errorResponse));
+        }
+        
+        // Eliminar el primer evento encontrado
+        const eventToDelete = events[0];
+        await calendarService.deleteEvent(CALENDAR_ID!, eventToDelete.id);
+        
+        const responseData = {
+            success: true,
+            message: 'Evento eliminado correctamente',
+            event: {
+                id: eventToDelete.id,
+                summary: eventToDelete.summary,
+                start: eventToDelete.start,
+                end: eventToDelete.end
+            }
+        };
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(responseData));
+    } catch (error: any) {
+        console.error('Error al eliminar evento por fecha y hora:', error);
+        
+        const errorResponse = {
+            success: false,
+            message: error.message || 'Error al eliminar el evento'
+        };
+        
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(errorResponse));
+    }
+});
+
+// Endpoint para listar eventos de un día específico
+app.get('/api/calendar/events', async (req, res) => {
+    try {
+        const { date } = req.query;
+        
+        if (!date) {
+            const errorResponse = {
+                success: false,
+                message: 'Fecha requerida'
+            };
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify(errorResponse));
+        }
+        
+        console.log(`Solicitud para listar eventos en fecha: ${date}`);
+        
+        // Crear fecha de inicio (00:00:00)
+        let selectedDate;
+        if (typeof date === 'string' && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            const [year, month, day] = date.split('-').map(Number);
+            selectedDate = new Date(year, month - 1, day);
+        } else {
+            selectedDate = new Date(date as string);
+        }
+        
+        selectedDate.setHours(0, 0, 0, 0);
+        
+        // Crear fecha de fin (23:59:59)
+        const endDate = new Date(selectedDate);
+        endDate.setHours(23, 59, 59, 999);
+        
+        // Buscar eventos en ese rango de tiempo
+        const events = await calendarService.findEventsByTimeRange(
+            CALENDAR_ID!,
+            selectedDate.toISOString(),
+            endDate.toISOString()
+        );
+        
+        // Formatear eventos para la respuesta
+        const formattedEvents = events.map(event => ({
+            id: event.id,
+            summary: event.summary,
+            description: event.description,
+            start: event.start,
+            end: event.end,
+            created: event.created,
+            updated: event.updated,
+            status: event.status
+        }));
+        
+        const responseData = {
+            success: true,
+            date: date,
+            events: formattedEvents
+        };
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(responseData));
+    } catch (error: any) {
+        console.error('Error al listar eventos:', error);
+        
+        const errorResponse = {
+            success: false,
+            message: error.message || 'Error al listar eventos'
+        };
+        
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(errorResponse));
+    }
+});
+
+// Endpoint de prueba simple
+app.get('/api/ping', (req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('pong');
+});
+
+// Endpoint para probar JSON
+app.get('/api/json-test', (req, res) => {
+    const data = {
+        message: 'Esto es una respuesta JSON',
+        timestamp: new Date().toISOString(),
+        success: true
+    };
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(data));
+});
+
+// Endpoint para probar parámetros
+app.get('/api/echo', (req, res) => {
+    const data = {
+        params: req.query,
+        success: true
+    };
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(data));
+});
+
+// Endpoint para probar POST
+app.post('/api/echo-post', (req, res) => {
+    const data = {
+        body: req.body,
+        success: true
+    };
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(data));
+});
+
+// Función principal para iniciar el bot y el servidor
+
+
+
+const main = async () => {
+
+    const adapterDB = new MemoryDB()
+    const adapterFlow = createFlow([  welcomeFlow,
+        agendarFlow,
+        registrarConsultasFlow,
+        cancelacionFlow])
+    const adapterProvider = createProvider(BaileysProvider)
+
+    adapterProvider.buildHTTPServer()
+
+    await createBot({
+        flow: adapterFlow,
+        provider: adapterProvider,
+        database: adapterDB,
+    })
+}
+
+main()
+
+
+// const main = async () => {
+//     try {
+//         // Crear flujos
+//         const flows = createFlow([
+//             welcomeFlow,
+//             agendarFlow,
+//             registrarConsultasFlow,
+//             cancelacionFlow
+//         ]);
+
+//         // Crear proveedor
+//         const provider = createProvider(BaileysProvider);
+
+//         // Crear bot
+//         const bot = await createBot({
+//             flow: flows,
+//             provider: provider,
+//             database: new MemoryDB()
+//         });
+
+//         // Iniciar el servidor
+//         const port = process.env.PORT || 3000;
+//         const server = app.listen(port, () => {
+//             console.log(`Servidor escuchando en puerto ${port}`);
+//         });
+
+//         // Manejador de eventos de conexión
+//         provider.on('connection.update', (update) => {
+//             const { connection } = update;
+//             if(connection === 'open') {
+//                 console.log('¡Conexión establecida!');
+//             }
+//         });
+
+//     } catch (error) {
+//         console.error('Error al iniciar el bot:', error);
+//         throw error;
+//     }
+// };
+
+// main();
 
 // Manejo de errores no capturados
 process.on('uncaughtException', (error) => {
