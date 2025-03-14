@@ -11,7 +11,11 @@ const app = express();
 
 // Middleware
 app.use(helmet()); // Seguridad
-app.use(cors(config.cors)); // CORS
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+})); // CORS
 app.use(morgan('dev')); // Logging
 app.use(express.json()); // Parseo de JSON
 app.use(express.urlencoded({ extended: true })); // Parseo de formularios

@@ -16,17 +16,28 @@ export class GoogleCalendarService {
    * @param eventData Datos del evento a crear
    * @returns Evento creado
    */
-  async createEvent(calendarId: string, eventData: calendar_v3.Schema$Event): Promise<calendar_v3.Schema$Event> {
+  async createEvent(calendarId: string, eventData: any): Promise<calendar_v3.Schema$Event> {
     try {
+      console.log('Intentando crear evento en Google Calendar');
+      console.log('Calendar ID:', calendarId);
+      console.log('Datos del evento:', JSON.stringify(eventData, null, 2));
+      
       const response = await this.calendar.events.insert({
         calendarId,
-        requestBody: eventData
+        requestBody: eventData,
       });
-
-      console.log(`Evento creado: ${response.data.id}`);
+      
+      console.log('Respuesta de Google Calendar:', JSON.stringify(response.data, null, 2));
+      
       return response.data;
     } catch (error) {
       console.error('Error al crear evento en Google Calendar:', error);
+      
+      // Mostrar más detalles del error si está disponible
+      if (error.response) {
+        console.error('Detalles del error:', JSON.stringify(error.response.data, null, 2));
+      }
+      
       throw error;
     }
   }
@@ -146,6 +157,26 @@ export class GoogleCalendarService {
     } catch (error) {
       console.error('Error al buscar eventos por rango de tiempo en Google Calendar:', error);
       throw error;
+    }
+  }
+
+  // Añadir este método para verificar la conexión
+  async verifyConnection(calendarId: string): Promise<boolean> {
+    try {
+      // Intentar listar eventos para verificar la conexión
+      const now = new Date();
+      const response = await this.calendar.events.list({
+        calendarId,
+        timeMin: now.toISOString(),
+        maxResults: 1,
+        singleEvents: true
+      });
+      
+      console.log('Conexión con Google Calendar verificada');
+      return true;
+    } catch (error) {
+      console.error('Error al verificar la conexión con Google Calendar:', error);
+      return false;
     }
   }
 }

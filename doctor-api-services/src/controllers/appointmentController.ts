@@ -5,8 +5,8 @@ import { Controller } from '../types/express';
 
 export const getAvailableSlots: Controller = async (req, res) => {
   try {
-    const { date } = req.query;
-    console.log(`Solicitud de horarios para fecha: ${date || 'hoy'}`);
+    const { date, showOccupied } = req.query;
+    console.log(`Solicitud de horarios para fecha: ${date || 'hoy'}, mostrar ocupados: ${showOccupied || 'false'}`);
     
     // Validar formato de fecha si se proporciona
     if (date && typeof date === 'string' && date.trim() !== '') {
@@ -23,24 +23,65 @@ export const getAvailableSlots: Controller = async (req, res) => {
     let selectedDate: Date;
     if (date && typeof date === 'string' && date.trim() !== '') {
       selectedDate = new Date(date);
+      
+      // Verificar que la fecha sea válida
+      if (isNaN(selectedDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Fecha inválida'
+        });
+      }
     } else {
+      // Si no se proporciona fecha, usar la fecha actual
       selectedDate = new Date();
+      
+      // Si es después de las 20:00, mostrar horarios para mañana
+      if (selectedDate.getHours() >= 20) {
+        console.log('Es tarde, mostrando horarios para mañana');
+        selectedDate.setDate(selectedDate.getDate() + 1);
+      }
     }
+    
+    // Resetear la hora a 00:00:00 para obtener todos los eventos del día
+    selectedDate.setHours(0, 0, 0, 0);
+    
+    console.log('Fecha seleccionada:', selectedDate.toISOString());
     
     // Obtener eventos existentes
     const existingEvents = await calendarService.listEvents(config.google.calendarId!, selectedDate);
     
-    // Obtener slots disponibles
-    const availableSlots = await appointmentService.getAvailableTimeSlots(
-      date as string | undefined,
+    // Obtener slots disponibles y ocupados
+    const slotsData = await appointmentService.getAvailableTimeSlots(
+      selectedDate.toISOString().split('T')[0],
       existingEvents
     );
     
-    res.status(200).json({
+    // Determinar qué datos devolver según el parámetro showOccupied
+    const includeOccupied = showOccupied === 'true';
+    
+    // Preparar respuesta
+    const response: any = {
       success: true,
-      date: date || new Date().toISOString().split('T')[0],
-      slots: availableSlots
-    });
+      date: slotsData.date,
+      displayDate: slotsData.displayDate,
+      available: {
+        morning: slotsData.available.morning,
+        afternoon: slotsData.available.afternoon,
+        total: slotsData.available.total
+      }
+    };
+    
+    // Incluir slots ocupados si se solicita
+    if (includeOccupied) {
+      response.occupied = slotsData.occupied;
+      response.allSlots = slotsData.allSlots;
+    } else {
+      // Si solo se quieren los disponibles, simplificar la respuesta
+      response.slots = [...slotsData.available.morning, ...slotsData.available.afternoon]
+        .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    }
+    
+    res.status(200).json(response);
   } catch (error: any) {
     console.error('Error al obtener horarios disponibles:', error);
     
@@ -53,52 +94,150 @@ export const getAvailableSlots: Controller = async (req, res) => {
 
 export const createAppointment: Controller = async (req, res) => {
   try {
-    const { clientName, date, time, phone } = req.body;
+    const { clientName, phone, date, time, description, email } = req.body;
     
-    if (!clientName || !date || !time) {
+    console.log('Solicitud de creación de cita:', { clientName, phone, date, time });
+    
+    if (!clientName || !phone || !date || !time) {
       return res.status(400).json({
         success: false,
-        message: 'Nombre, fecha y hora son requeridos'
+        message: 'Nombre, teléfono, fecha y hora son requeridos'
       });
     }
     
-    console.log(`Solicitud para crear evento: ${clientName}, ${date}, ${time}`);
+    // Validar formato de fecha
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(date)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Formato de fecha inválido. Use YYYY-MM-DD'
+      });
+    }
+    
+    // Validar formato de hora
+    const timeRegex = /^\d{2}:\d{2}$/;
+    if (!timeRegex.test(time)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Formato de hora inválido. Use HH:MM'
+      });
+    }
     
     // Crear fecha y hora de inicio
-    const startTime = new Date(`${date}T${time}`);
+    const startDateTime = new Date(`${date}T${time}:00`);
+    
+    // Verificar que la fecha no esté en el pasado
+    const now = new Date();
+    if (startDateTime <= now) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se pueden agendar citas en el pasado'
+      });
+    }
     
     // Crear fecha y hora de fin (30 minutos después)
-    const endTime = new Date(startTime.getTime() + 30 * 60000);
+    const endDateTime = new Date(startDateTime.getTime() + 30 * 60000);
     
-    const event = await calendarService.createEvent(config.google.calendarId!, {
-      summary: `Cita - ${clientName}`,
-      description: `Cita agendada por: ${clientName}\nTeléfono: ${phone || 'No proporcionado'}`,
-      start: { 
-        dateTime: startTime.toISOString(),
+    // Verificar si el horario está disponible
+    const existingEvents = await calendarService.listEvents(config.google.calendarId!, new Date(date));
+    const busySlots = existingEvents
+      .filter(event => event.start?.dateTime && event.end?.dateTime)
+      .map(event => ({
+        start: new Date(event.start!.dateTime!),
+        end: new Date(event.end!.dateTime!)
+      }));
+    
+    const isSlotBusy = busySlots.some(busySlot => 
+      (startDateTime >= busySlot.start && startDateTime < busySlot.end) ||
+      (endDateTime > busySlot.start && endDateTime <= busySlot.end) ||
+      (startDateTime <= busySlot.start && endDateTime >= busySlot.end)
+    );
+    
+    if (isSlotBusy) {
+      return res.status(409).json({
+        success: false,
+        message: 'El horario seleccionado ya está ocupado'
+      });
+    }
+    
+    // Crear evento en Google Calendar
+    const eventData: any = {
+      summary: `Cita médica - ${clientName}`,
+      description: `Cita médica para ${clientName}. Teléfono: ${phone}${email ? `. Email: ${email}` : ''}${description ? `. Notas: ${description}` : ''}`,
+      start: {
+        dateTime: startDateTime.toISOString(),
         timeZone: config.google.timezone
       },
-      end: { 
-        dateTime: endTime.toISOString(),
+      end: {
+        dateTime: endDateTime.toISOString(),
         timeZone: config.google.timezone
+      },
+      // Sin attendees para evitar el error de permisos
+      reminders: {
+        useDefault: false,
+        overrides: [
+          { method: 'popup', minutes: 30 }
+        ]
       }
-    });
+    };
     
-    res.status(201).json({
-      success: true,
-      message: 'Cita agendada exitosamente',
-      data: {
-        id: event.id,
-        summary: event.summary,
-        start: event.start,
-        end: event.end
-      }
-    });
+    console.log('Datos del evento a crear:', eventData);
+    
+    try {
+      console.log('Intentando crear evento en Google Calendar');
+      const createdEvent = await calendarService.createEvent(config.google.calendarId!, eventData);
+      console.log('Evento creado exitosamente:', createdEvent.id);
+      
+      // Formatear la respuesta
+      const appointmentInfo = {
+        id: createdEvent.id,
+        summary: createdEvent.summary,
+        start: {
+          dateTime: createdEvent.start?.dateTime,
+          displayTime: new Date(createdEvent.start?.dateTime!).toLocaleTimeString('es-ES', {
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        },
+        end: {
+          dateTime: createdEvent.end?.dateTime,
+          displayTime: new Date(createdEvent.end?.dateTime!).toLocaleTimeString('es-ES', {
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        },
+        displayDate: new Date(createdEvent.start?.dateTime!).toLocaleDateString('es-ES', {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        }),
+        patient: {
+          name: clientName,
+          phone: phone,
+          email: email || null
+        }
+      };
+      
+      res.status(201).json({
+        success: true,
+        message: 'Cita agendada exitosamente',
+        data: appointmentInfo
+      });
+    } catch (calendarError) {
+      console.error('Error específico de Google Calendar:', calendarError);
+      
+      res.status(500).json({
+        success: false,
+        message: 'Error al crear evento en Google Calendar: ' + calendarError.message
+      });
+    }
   } catch (error: any) {
     console.error('Error al crear cita:', error);
     
     res.status(500).json({
       success: false,
-      message: error.message || 'Error al crear la cita'
+      message: error.message || 'Error al agendar la cita'
     });
   }
 };
@@ -167,6 +306,21 @@ export const deleteAppointment: Controller = async (req, res) => {
       });
     }
     
+    console.log(`Intentando eliminar cita con ID: ${id}`);
+    
+    try {
+      // Primero verificamos que el evento existe
+      const event = await calendarService.getEvent(config.google.calendarId!, id);
+      console.log('Evento encontrado:', event.id);
+    } catch (eventError) {
+      console.error('Error al buscar el evento:', eventError);
+      return res.status(404).json({
+        success: false,
+        message: 'No se encontró la cita con el ID proporcionado'
+      });
+    }
+    
+    // Si llegamos aquí, el evento existe, procedemos a eliminarlo
     await calendarService.deleteEvent(config.google.calendarId!, id);
     
     res.status(200).json({
@@ -176,9 +330,88 @@ export const deleteAppointment: Controller = async (req, res) => {
   } catch (error: any) {
     console.error('Error al cancelar cita:', error);
     
+    // Determinar el tipo de error para dar una respuesta más específica
+    if (error.response && error.response.status === 404) {
+      return res.status(404).json({
+        success: false,
+        message: 'No se encontró la cita con el ID proporcionado'
+      });
+    }
+    
     res.status(500).json({
       success: false,
       message: error.message || 'Error al cancelar la cita'
+    });
+  }
+};
+
+export const getWeeklySlots: Controller = async (req, res) => {
+  try {
+    const { startDate } = req.query;
+    
+    // Determinar la fecha de inicio
+    let start: Date;
+    if (startDate && typeof startDate === 'string' && startDate.trim() !== '') {
+      start = new Date(startDate);
+      if (isNaN(start.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Fecha de inicio inválida'
+        });
+      }
+    } else {
+      // Si no se proporciona fecha, usar la fecha actual
+      start = new Date();
+    }
+    
+    // Resetear la hora a 00:00:00
+    start.setHours(0, 0, 0, 0);
+    
+    // Generar array de 7 días a partir de la fecha de inicio
+    const weekDays = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(start);
+      day.setDate(day.getDate() + i);
+      weekDays.push(day);
+    }
+    
+    // Obtener slots para cada día
+    const weeklySlots = [];
+    for (const day of weekDays) {
+      // Obtener eventos existentes
+      const existingEvents = await calendarService.listEvents(config.google.calendarId!, day);
+      
+      // Obtener slots disponibles
+      const daySlots = await appointmentService.getAvailableTimeSlots(
+        day.toISOString().split('T')[0],
+        existingEvents
+      );
+      
+      // Simplificar la respuesta para incluir solo lo necesario
+      weeklySlots.push({
+        date: daySlots.date,
+        displayDate: daySlots.displayDate,
+        dayOfWeek: new Date(daySlots.date).toLocaleDateString('es-ES', { weekday: 'long' }),
+        availableCount: daySlots.available.total,
+        occupiedCount: daySlots.occupied.total,
+        // Incluir solo los slots disponibles
+        availableSlots: [...daySlots.available.morning, ...daySlots.available.afternoon]
+          .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime())
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      startDate: start.toISOString().split('T')[0],
+      endDate: weekDays[6].toISOString().split('T')[0],
+      days: weeklySlots
+    });
+  } catch (error: any) {
+    console.error('Error al obtener horarios semanales:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error al obtener horarios semanales'
     });
   }
 };

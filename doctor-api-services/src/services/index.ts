@@ -1,5 +1,5 @@
 import { AppointmentsService } from './appointments';
-import { GoogleSheetsService } from './google/sheets';
+import { GoogleSheetsService } from './google/sheet';
 import { GoogleCalendarService } from './google/calendar';
 
 // Inicializar servicios

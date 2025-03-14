@@ -9,4 +9,7 @@ router.post('/', appointmentController.createAppointment);
 router.get('/', appointmentController.listAppointments);
 router.delete('/:id', appointmentController.deleteAppointment);
 
+// Nueva ruta para obtener slots de una semana completa
+router.get('/weekly-slots', appointmentController.getWeeklySlots);
+
 export default router;

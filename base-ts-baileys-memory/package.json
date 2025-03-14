@@ -4,9 +4,6 @@
   "description": "",
   "main": "dist/app.js",
   "type": "module",
-  "engines": {
-    "node": ">=16.0.0"
-  },
   "scripts": {
     "start": "node ./dist/app.js",
     "lint": "eslint . --no-ignore",
@@ -15,12 +12,8 @@
   },
   "keywords": [],
   "dependencies": {
-    "@builderbot/bot": "^1.2.5",
+    "@builderbot/bot": "1.2.5",
     "@builderbot/provider-baileys": "1.2.5",
-    "@google-cloud/local-auth": "^3.0.1",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
-    "googleapis": "^146.0.0",
     "sharp": "^0.33.5"
   },
   "devDependencies": {
