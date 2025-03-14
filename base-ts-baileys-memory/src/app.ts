@@ -1,81 +1,235 @@
-import { createBot, createProvider, createFlow, addKeyword, MemoryDB } from '@builderbot/bot'
-import { BaileysProvider } from '@builderbot/provider-baileys'
-import { appointmentFlow, cancelAppointmentFlow } from './flows/appointment.flow'
-import { patientFlow } from './flows/patient.flow'
-import { Logger } from './utils/logger'
+import { join } from 'path'
+import { createBot, createProvider, createFlow, addKeyword, utils } from '@builderbot/bot'
+import { MemoryDB as Database } from '@builderbot/bot'
+import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
+import fetch from 'node-fetch';
 
-// Configuración de la API
-const API_URL = 'http://localhost:3001/api' // Asegúrate de que esta URL sea correcta
 const PORT = process.env.PORT ?? 3008
 
-const welcomeFlow = addKeyword(['hola', 'buenos días', 'buenas tardes', 'buenas noches', 'hi', 'hello'])
-  .addAnswer('👋 ¡Hola! Soy el asistente virtual del consultorio médico.')
-  .addAnswer([
-    '¿En qué puedo ayudarte hoy?',
-    '',
-    '*Horarios de atención:*',
-    '• Mañana: 08:30 a 11:30',
-    '• Tarde: 16:30 a 19:30',
-    '',
-    '1️⃣ *Consultar horarios disponibles*',
-    '2️⃣ *Agendar una cita*',
-    '3️⃣ *Cancelar una cita*',
-    '4️⃣ *Registrarme como paciente*',
-    '',
-    'Responde con el número de la opción que deseas.'
-  ])
+// Flujo para mostrar los horarios disponibles
+export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 'turnos'])
+    .addAction(async (ctx, { flowDynamic, state }) => {
+        try {
+            // Obtener la fecha actual
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const date = `${year}-${month}-${day}`;
 
-const menuFlow = addKeyword(['menu', 'menú', 'opciones', 'ayuda', 'help'])
-  .addAnswer([
-    '📋 *MENÚ PRINCIPAL*',
-    '',
-    '1️⃣ *Consultar horarios disponibles*',
-    '2️⃣ *Agendar una cita*',
-    '3️⃣ *Cancelar una cita*',
-    '4️⃣ *Registrarme como paciente*',
-    '',
-    'Responde con el número de la opción que deseas.'
-  ])
+            // Hacer una solicitud a la API para obtener los horarios disponibles
+            const response = await fetch(`http://localhost:3001/api/appointments/available-slots?date=${date}`);
+            const data = await response.json();
 
-const bookAppointmentFlow = addKeyword(['2', 'agendar', 'cita', 'turno'])
-  .addAnswer('📅 Vamos a agendar una cita.')
-  .addAnswer('Primero, consultemos los horarios disponibles.')
-  .addAnswer('¿Para qué fecha quieres consultar? (Formato: YYYY-MM-DD, ejemplo: 2025-03-15)')
-  .addAction(async (ctx, { gotoFlow }) => {
-    // Redirigir al flujo de consulta de horarios
-    return gotoFlow(appointmentFlow)
-  })
+            if (data.success) {
+                let message = `Horarios disponibles para el ${data.displayDate}:\n\n`;
+                const slots = [];
 
+                // Agregar horarios de la mañana al mensaje
+                if (data.available.morning.length > 0) {
+                    message += `*Mañana:*\n`;
+                    data.available.morning.forEach(slot => {
+                        slots.push(slot);
+                    });
+                }
+
+                // Agregar horarios de la tarde al mensaje
+                if (data.available.afternoon.length > 0) {
+                    message += `\n*Tarde:*\n`;
+                    data.available.afternoon.forEach(slot => {
+                        slots.push(slot);
+                    });
+                }
+
+                // Si no hay horarios disponibles, enviar un mensaje al usuario
+                if (slots.length === 0) {
+                    await flowDynamic('No hay horarios disponibles para hoy.');
+                    return;
+                }
+
+                // Enumerar los horarios disponibles
+                for (let i = 0; i < slots.length; i++) {
+                    message += `${i + 1}. 🕒 ${slots[i].displayTime} - ${slots[i].status}\n`;
+                }
+
+                // Guardar los horarios disponibles y la fecha en el estado
+                await state.update({ availableSlots: slots, appointmentDate: date });
+                await flowDynamic(message);
+            } else {
+                await flowDynamic('No se encontraron horarios disponibles para hoy.');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            await flowDynamic('Hubo un error al consultar los horarios disponibles.');
+        }
+    })
+    .addAnswer('✍️ Por favor, indica el número del horario que deseas reservar. Si no deseas reservar, escribe *cancelar*.', { capture: true }, async (ctx, { gotoFlow, state }) => {
+        if (ctx.body.toLowerCase() === 'cancelar') {
+            await flowDynamic('Reserva cancelada.');
+            return;
+        }
+
+        const selectedSlotNumber = parseInt(ctx.body);
+        const availableSlots = state.get('availableSlots');
+
+        // Validar el número de horario seleccionado
+        if (isNaN(selectedSlotNumber) || selectedSlotNumber < 1 || selectedSlotNumber > availableSlots.length) {
+            await flowDynamic('Número de horario inválido. Por favor, intenta nuevamente.');
+            return;
+        }
+
+        // Guardar el horario seleccionado en el estado y pasar al flujo de reserva
+        const selectedSlot = availableSlots[selectedSlotNumber - 1];
+        await state.update({ selectedSlot: selectedSlot });
+        return gotoFlow(bookAppointmentFlow);
+    });
+
+// Flujo para reservar una cita
+export const bookAppointmentFlow = addKeyword(['2', 'reservar', 'cita', 'agendar'])
+    .addAnswer('*Por favor*, indícame tu nombre, apellido y número de afiliado de obra social o *DNI*:', { capture: true })
+    .addAction(async (ctx, { flowDynamic, state }) => {
+        try {
+            const { body } = ctx;
+            const [name] = body.split('\n').map(item => item.trim());
+            const selectedSlot = state.get('selectedSlot');
+            const appointmentDate = state.get('appointmentDate');
+            const phone = ctx.from;
+
+            // Datos de la cita a enviar a la API
+            const appointmentData = {
+                clientName: name,
+                phone: phone,
+                date: appointmentDate,
+                time: selectedSlot.displayTime,
+                email: phone + '@phone.com',
+                description: 'Reserva de cita'
+            };
+
+            // Hacer una solicitud a la API para reservar la cita
+            const response = await fetch('http://localhost:3001/api/appointments', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(appointmentData)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Mensaje de confirmación de la cita
+                const message = `✅ Cita agendada exitosamente\n\n` +
+                    `📅 Fecha: ${data.data.displayDate}\n` +
+                    `🕒 Hora: ${data.data.start.displayTime} - ${data.data.end.displayTime}\n` +
+                    `👤 Paciente: ${data.data.patient.name}\n` +
+                    `📞 Teléfono: ${data.data.patient.phone}\n` +
+                    `📝 Descripción: ${data.data.summary}`;
+
+                await flowDynamic(message);
+            } else {
+                await flowDynamic('❌ Hubo un problema al agendar la cita. Por favor, intenta nuevamente.');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            await flowDynamic('❌ Hubo un error al agendar la cita. Por favor, intenta nuevamente.');
+        }
+    });
+
+// Flujo de bienvenida
+const welcomeFlow = addKeyword<Provider, Database>(['hi', 'hello', 'hola'])
+    .addAnswer(`🩺 *¡Bienvenido al Asistente Virtual del Consultorio Médico!* 🩺`)
+    .addAnswer(
+        [
+            'Puedo ayudarte con las siguientes opciones:',
+            '',
+            '1️⃣ *horarios* - Ver horarios disponibles para citas',
+            '2️⃣ *mis citas* - Consultar tus citas programadas',
+            '3️⃣ *registrarme* - Registrar tus datos como paciente',
+            '4️⃣ *agendar* - Agendar una nueva cita',
+            '5️⃣ *cancelar* - Cancelar una cita existente',
+            '',
+            '¿En qué puedo ayudarte hoy?'
+        ].join('\n')
+    )
+
+// Función principal para iniciar el bot
 const main = async () => {
-  const adapterDB = new MemoryDB()
-  const adapterFlow = createFlow([
-    welcomeFlow,
-    menuFlow,
-    bookAppointmentFlow,
-    appointmentFlow,
-    cancelAppointmentFlow,
-    patientFlow
-  ])
-  const adapterProvider = createProvider(BaileysProvider, {
-    writeMyself: 'host' as 'none' | 'host' | 'both'
-  })
+    const adapterFlow = createFlow([welcomeFlow, availableSlotsFlow, bookAppointmentFlow])
 
-  const { httpServer } = await createBot({
-    flow: adapterFlow,
-    provider: adapterProvider,
-    database: adapterDB,
-  })
+    const adapterProvider = createProvider(Provider)
+    const adapterDB = new Database()
 
-  httpServer(+PORT)
+    const { handleCtx, httpServer } = await createBot({
+        flow: adapterFlow,
+        provider: adapterProvider,
+        database: adapterDB,
+    })
+
+    // Endpoint para enviar mensajes
+    adapterProvider.server.post(
+        '/v1/messages',
+        handleCtx(async (bot, req, res) => {
+            const { number, message, urlMedia } = req.body
+            await bot.sendMessage(number, message, { media: urlMedia ?? null })
+            return res.end('sended')
+        })
+    )
+
+    // Endpoint para registrar usuarios
+    adapterProvider.server.post(
+        '/v1/register',
+        handleCtx(async (bot, req, res) => {
+            const { number, name } = req.body
+            await bot.dispatch('REGISTER_FLOW', { from: number, name })
+            return res.end('trigger')
+        })
+    )
+
+    // Endpoint para enviar muestras
+    adapterProvider.server.post(
+        '/v1/samples',
+        handleCtx(async (bot, req, res) => {
+            const { number, name } = req.body
+            await bot.dispatch('SAMPLES', { from: number, name })
+            return res.end('trigger')
+        })
+    )
+
+    // Endpoint para manejar la lista negra
+    adapterProvider.server.post(
+        '/v1/blacklist',
+        handleCtx(async (bot, req, res) => {
+            const { number, intent } = req.body
+            if (intent === 'remove') bot.blacklist.remove(number)
+            if (intent === 'add') bot.blacklist.add(number)
+
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            return res.end(JSON.stringify({ status: 'ok', number, intent }))
+        })
+    )
+
+    // Iniciar el servidor HTTP
+    httpServer(+PORT)
 }
 
 main()
 
-// Agregar manejadores de errores no capturados
-process.on('uncaughtException', (error) => {
-  Logger.error('UNCAUGHT EXCEPTION:', error);
-});
+// const registerFlow = addKeyword<Provider, Database>(utils.setEvent('REGISTER_FLOW'))
+//     .addAnswer(`What is your name?`, { capture: true }, async (ctx, { state }) => {
+//         await state.update({ name: ctx.body })
+//     })
+//     .addAnswer('What is your age?', { capture: true }, async (ctx, { state }) => {
+//         await state.update({ age: ctx.body })
+//     })
+//     .addAction(async (_, { flowDynamic, state }) => {
+//         await flowDynamic(`${state.get('name')}, thanks for your information!: Your age: ${state.get('age')}`)
+//     })
 
-process.on('unhandledRejection', (reason, promise) => {
-  Logger.error('UNHANDLED REJECTION:', reason);
-});
+// const fullSamplesFlow = addKeyword<Provider, Database>(['samples', utils.setEvent('SAMPLES')])
+//     .addAnswer(`💪 I'll send you a lot files...`)
+//     .addAnswer(`Send image from Local`, { media: join(process.cwd(), 'assets', 'sample.png') })
+//     .addAnswer(`Send video from URL`, {
+//         media: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJ0ZGdjd2syeXAwMjQ4aWdkcW04OWlqcXI3Ynh1ODkwZ25zZWZ1dCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LCohAb657pSdHv0Q5h/giphy.mp4',
+//     })
+//     .addAnswer(`Send audio from URL`, { media: 'https://cdn.freesound.org/previews/728/728142_11861866-lq.mp3' })
+//     .addAnswer(`Send file from URL`, {
+//         media: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+//     })
