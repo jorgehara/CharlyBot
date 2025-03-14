@@ -9,47 +9,10 @@ export const getAvailableSlots: Controller = async (req, res) => {
     const { date, showOccupied } = req.query;
     console.log(`Solicitud de horarios para fecha: ${date || 'hoy'}, mostrar ocupados: ${showOccupied || 'false'}`);
     
-    // Validar formato de fecha si se proporciona
-    if (date && typeof date === 'string' && date.trim() !== '') {
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(date)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Formato de fecha inválido. Use YYYY-MM-DD'
-        });
-      }
-    }
+    // Obtener fecha actual si no se proporciona
+    const selectedDate = date ? String(date) : new Date().toISOString().split('T')[0];
     
-    // Determinar la fecha para la cual buscar horarios
-    let selectedDate: Date;
-    if (date && typeof date === 'string' && date.trim() !== '') {
-      // Crear fecha en zona horaria local
-      selectedDate = new Date(date + 'T00:00:00');
-      
-      // Verificar que la fecha sea válida
-      if (isNaN(selectedDate.getTime())) {
-        return res.status(400).json({
-          success: false,
-          message: 'Fecha inválida'
-        });
-      }
-    } else {
-      // Si no se proporciona fecha, usar la fecha actual en zona horaria local
-      selectedDate = new Date();
-      
-      // Si es después de las 20:00, mostrar horarios para mañana
-      if (selectedDate.getHours() >= 20) {
-        console.log('Es tarde, mostrando horarios para mañana');
-        selectedDate.setDate(selectedDate.getDate() + 1);
-      }
-      
-      // Resetear la hora a 00:00:00
-      selectedDate.setHours(0, 0, 0, 0);
-    }
-    
-    console.log('Fecha seleccionada:', selectedDate.toISOString());
-    
-    // Obtener eventos existentes para todo el día
+    // Configurar inicio del día para buscar eventos
     const startOfDay = new Date(selectedDate);
     startOfDay.setHours(0, 0, 0, 0);
     
@@ -60,19 +23,11 @@ export const getAvailableSlots: Controller = async (req, res) => {
       startOfDay
     );
     
-    console.log('Eventos encontrados:', existingEvents.length);
-    
-    // Obtener slots disponibles y ocupados
-    const slotsData = await appointmentService.getAvailableTimeSlots(
-      selectedDate.toISOString().split('T')[0],
-      existingEvents
-    );
-    
-    // Determinar qué datos devolver según el parámetro showOccupied
-    const includeOccupied = showOccupied === 'true';
+    // Obtener horarios disponibles
+    const slotsData = await appointmentService.getAvailableTimeSlots(selectedDate, existingEvents);
     
     // Preparar respuesta
-    const response: any = {
+    const response: SlotsResponse = {
       success: true,
       date: slotsData.date,
       displayDate: slotsData.displayDate,
@@ -80,17 +35,17 @@ export const getAvailableSlots: Controller = async (req, res) => {
         morning: slotsData.available.morning,
         afternoon: slotsData.available.afternoon,
         total: slotsData.available.total
+      },
+      occupied: {
+        morning: slotsData.occupied.morning,
+        afternoon: slotsData.occupied.afternoon,
+        total: slotsData.occupied.total
       }
     };
     
-    // Incluir slots ocupados si se solicita
-    if (includeOccupied) {
-      response.occupied = slotsData.occupied;
-      response.allSlots = slotsData.allSlots;
-    } else {
-      // Si solo se quieren los disponibles, simplificar la respuesta
-      response.slots = [...slotsData.available.morning, ...slotsData.available.afternoon]
-        .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+    // Incluir todos los slots si se solicita mostrar ocupados
+    if (showOccupied === 'true' && slotsData.slots) {
+      response.slots = slotsData.slots;
     }
     
     res.status(200).json(response);

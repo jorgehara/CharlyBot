@@ -48,6 +48,13 @@ const options: swaggerJSDoc.Options = {
               enum: ['disponible', 'ocupado'],
               description: 'Estado del turno'
             }
+          },
+          example: {
+            time: '2025-03-15T08:30:00.000Z',
+            displayTime: '08:30',
+            displayDate: '15 de marzo de 2025',
+            period: 'mañana',
+            status: 'disponible'
           }
         },
         AppointmentRequest: {

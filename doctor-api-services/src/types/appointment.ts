@@ -4,11 +4,13 @@ export interface TimeSlot {
   time: string;
   displayTime: string;
   displayDate: string;
-  period: string;
+  period: 'mañana' | 'tarde';
   status: 'disponible' | 'ocupado';
+  eventSummary?: string;
 }
 
 export interface SlotsResponse {
+  success: boolean;
   date: string;
   displayDate: string;
   available: {
@@ -21,13 +23,16 @@ export interface SlotsResponse {
     afternoon: TimeSlot[];
     total: number;
   };
-  allSlots: TimeSlot[];
+  slots?: TimeSlot[];
 }
 
 export interface BusySlot {
   start: string;
   end: string;
   summary?: string;
+  period?: 'mañana' | 'tarde';
+  displayTime?: string;
+  displayDate?: string;
 }
 
 export interface AppointmentInfo {

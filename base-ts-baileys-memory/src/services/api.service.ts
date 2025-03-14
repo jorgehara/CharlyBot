@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_CONFIG } from '../config/api';
+import { Logger } from '../utils/logger';
 
 // Crear instancia de axios con la URL base
 const apiClient = axios.create({
@@ -62,11 +63,21 @@ export class ApiService {
     description?: string;
   }) {
     try {
+      Logger.info('Enviando datos de cita a la API:', appointmentData);
+      
       const response = await apiClient.post(API_CONFIG.endpoints.appointments, appointmentData);
+      Logger.info('Respuesta de la API:', response.data);
+      
       return response.data;
-    } catch (error) {
-      console.error('Error al crear cita:', error);
-      throw error;
+    } catch (error: any) {
+      Logger.error('Error al crear cita:', error);
+      
+      // Devolver un objeto de error estructurado
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Error al crear cita',
+        error: error.message
+      };
     }
   }
   

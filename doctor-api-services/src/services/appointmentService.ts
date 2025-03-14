@@ -24,116 +24,106 @@ export class AppointmentService {
         targetDate.setHours(0, 0, 0, 0);
       }
       
-      // Asegurarse de que la fecha es válida
+      // Verificar que la fecha sea válida
       if (isNaN(targetDate.getTime())) {
         throw new Error('Fecha inválida');
       }
       
       console.log('Generando horarios para:', targetDate.toISOString(), 'en zona horaria local');
       
-      // Configurar horarios de consulta (8:00 AM a 8:00 PM)
-      const startHour = 8;
-      const endHour = 20;
-      const slotDuration = 30; // minutos
-      
-      // Obtener eventos existentes para la fecha
-      const busySlots = this.getBusyTimeSlots(existingEvents);
-      console.log('Horarios ocupados:', busySlots);
+      // Configurar horarios de consulta (horarios ajustados)
+      const morningStart = 8.5; // 8:30 AM
+      const morningEnd = 11.5;  // 11:30 AM
+      const afternoonStart = 16.5; // 16:30 PM
+      const afternoonEnd = 19.5;   // 19:30 PM
+      const slotDuration = 0.5;    // 30 minutos por turno
       
       // Generar todos los slots posibles para el día
-      const availableSlots: TimeSlot[] = [];
-      const occupiedSlots: TimeSlot[] = [];
+      const allSlots: TimeSlot[] = [];
       
-      // Formatear la fecha para mostrar
-      const displayDate = targetDate.toLocaleDateString('es-ES', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      });
+      // Generar slots de la mañana
+      for (let hour = morningStart; hour < morningEnd; hour += slotDuration) {
+        const slotTime = new Date(targetDate);
+        const hourInt = Math.floor(hour);
+        const minuteInt = (hour - hourInt) * 60;
+        
+        slotTime.setHours(hourInt, minuteInt, 0, 0);
+        
+        allSlots.push({
+          time: slotTime.toISOString(),
+          displayTime: this.formatTime(slotTime),
+          displayDate: this.formatDate(slotTime),
+          period: 'mañana',
+          status: 'disponible'
+        });
+      }
       
-      // Obtener la fecha actual para comparar
-      const now = new Date();
+      // Generar slots de la tarde
+      for (let hour = afternoonStart; hour < afternoonEnd; hour += slotDuration) {
+        const slotTime = new Date(targetDate);
+        const hourInt = Math.floor(hour);
+        const minuteInt = (hour - hourInt) * 60;
+        
+        slotTime.setHours(hourInt, minuteInt, 0, 0);
+        
+        allSlots.push({
+          time: slotTime.toISOString(),
+          displayTime: this.formatTime(slotTime),
+          displayDate: this.formatDate(slotTime),
+          period: 'tarde',
+          status: 'disponible'
+        });
+      }
       
-      // Determinar si la fecha objetivo es hoy
-      const isToday = targetDate.toDateString() === now.toDateString();
+      // Obtener los horarios ocupados
+      const busySlots = this.getBusyTimeSlots(existingEvents);
       
-      // Generar slots para cada hora dentro del rango de horario de consulta
-      for (let hour = startHour; hour < endHour; hour++) {
-        for (let minute = 0; minute < 60; minute += slotDuration) {
-          // Crear fecha y hora para el slot
-          const slotTime = new Date(targetDate);
-          slotTime.setHours(hour, minute, 0, 0);
+      // Marcar los slots ocupados
+      for (const slot of allSlots) {
+        const slotStart = new Date(slot.time);
+        const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000); // 30 minutos después
+        
+        for (const busySlot of busySlots) {
+          const busyStart = new Date(busySlot.start);
+          const busyEnd = new Date(busySlot.end);
           
-          // Verificar si el slot está en el pasado (solo si es para hoy)
-          if (isToday && slotTime <= now) {
-            continue; // Saltar slots en el pasado solo para el día actual
-          }
-          
-          // Determinar si es mañana o tarde
-          const period = hour < 12 ? 'mañana' as const : 'tarde' as const;
-          
-          // Formatear hora para mostrar
-          const displayTime = slotTime.toLocaleTimeString('es-ES', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-          });
-          
-          // Verificar si el slot está ocupado
-          const isSlotBusy = busySlots.some(busySlot => {
-            const busyStart = new Date(busySlot.start);
-            const busyEnd = new Date(busySlot.end);
-            return slotTime >= busyStart && slotTime < busyEnd;
-          });
-          
-          // Crear objeto base del slot
-          const slotBase = {
-            time: slotTime.toISOString(),
-            displayTime,
-            displayDate,
-            period
-          };
-          
-          // Agregar a la lista correspondiente
-          if (isSlotBusy) {
-            occupiedSlots.push({
-              ...slotBase,
-              status: 'ocupado' as const
-            });
-          } else {
-            availableSlots.push({
-              ...slotBase,
-              status: 'disponible' as const
-            });
+          // Verificar si hay solapamiento
+          if (
+            (slotStart >= busyStart && slotStart < busyEnd) ||
+            (slotEnd > busyStart && slotEnd <= busyEnd) ||
+            (slotStart <= busyStart && slotEnd >= busyEnd)
+          ) {
+            slot.status = 'ocupado';
+            // No asignar summary directamente a slot
+            break;
           }
         }
       }
       
-      // Organizar slots por período
-      const morningAvailable = availableSlots.filter(slot => slot.period === 'mañana');
-      const afternoonAvailable = availableSlots.filter(slot => slot.period === 'tarde');
-      const morningOccupied = occupiedSlots.filter(slot => slot.period === 'mañana');
-      const afternoonOccupied = occupiedSlots.filter(slot => slot.period === 'tarde');
+      // Separar slots por período y estado
+      const morningAvailable = allSlots.filter(slot => slot.period === 'mañana' && slot.status === 'disponible');
+      const morningOccupied = allSlots.filter(slot => slot.period === 'mañana' && slot.status === 'ocupado');
+      const afternoonAvailable = allSlots.filter(slot => slot.period === 'tarde' && slot.status === 'disponible');
+      const afternoonOccupied = allSlots.filter(slot => slot.period === 'tarde' && slot.status === 'ocupado');
       
-      console.log(`Generados ${availableSlots.length} horarios disponibles y ${occupiedSlots.length} ocupados`);
+      // Formatear la fecha para mostrar
+      const displayDate = this.formatDate(targetDate);
       
       return {
+        success: true,
         date: targetDate.toISOString().split('T')[0],
         displayDate,
         available: {
           morning: morningAvailable,
           afternoon: afternoonAvailable,
-          total: availableSlots.length
+          total: morningAvailable.length + afternoonAvailable.length
         },
         occupied: {
           morning: morningOccupied,
           afternoon: afternoonOccupied,
-          total: occupiedSlots.length
+          total: morningOccupied.length + afternoonOccupied.length
         },
-        allSlots: [...availableSlots, ...occupiedSlots].sort((a, b) => 
-          new Date(a.time).getTime() - new Date(b.time).getTime()
-        )
+        slots: allSlots
       };
     } catch (error) {
       console.error('Error al generar horarios disponibles:', error);
@@ -149,10 +139,39 @@ export class AppointmentService {
   private getBusyTimeSlots(events: calendar_v3.Schema$Event[]): BusySlot[] {
     return events
       .filter(event => event.start?.dateTime && event.end?.dateTime)
-      .map(event => ({
-        start: event.start!.dateTime!,
-        end: event.end!.dateTime!,
-        summary: event.summary
-      }));
+      .map(event => {
+        const startDate = new Date(event.start!.dateTime!);
+        const endDate = new Date(event.end!.dateTime!);
+        
+        // Determinar si es mañana o tarde
+        const hour = startDate.getHours();
+        const period = hour < 12 ? 'mañana' as const : 'tarde' as const;
+        
+        return {
+          start: event.start!.dateTime!,
+          end: event.end!.dateTime!,
+          summary: event.summary,
+          period,
+          displayTime: this.formatTime(startDate),
+          displayDate: this.formatDate(startDate)
+        };
+      });
+  }
+
+  private formatTime(date: Date): string {
+    return date.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  }
+
+  private formatDate(date: Date): string {
+    return date.toLocaleDateString('es-ES', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
   }
 } 
