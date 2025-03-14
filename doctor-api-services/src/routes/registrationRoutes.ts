@@ -3,7 +3,7 @@ import * as registrationController from '../controllers/registrationController';
 
 const router = Router();
 
-// Rutas para registro
-router.post('/', registrationController.registerUser);
+// Rutas para registro de pacientes
+router.post('/', registrationController.registerPatient);
 
 export default router;

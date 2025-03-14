@@ -108,30 +108,28 @@ export class GoogleCalendarService {
   /**
    * Lista eventos de un día específico
    * @param calendarId ID del calendario
-   * @param date Fecha para la cual listar eventos
+   * @param timeMin Tiempo mínimo (inicio del rango)
+   * @param timeMax Tiempo máximo (fin del rango)
    * @returns Lista de eventos
    */
-  async listEvents(calendarId: string, date: Date): Promise<calendar_v3.Schema$Event[]> {
+  async listEvents(calendarId: string, timeMin: Date, timeMax?: Date): Promise<calendar_v3.Schema$Event[]> {
     try {
-      // Crear fecha de inicio (00:00:00)
-      const timeMin = new Date(date);
-      timeMin.setHours(0, 0, 0, 0);
-      
-      // Crear fecha de fin (23:59:59)
-      const timeMax = new Date(date);
-      timeMax.setHours(23, 59, 59, 999);
-      
-      const response = await this.calendar.events.list({
+      const params: calendar_v3.Params$Resource$Events$List = {
         calendarId,
         timeMin: timeMin.toISOString(),
-        timeMax: timeMax.toISOString(),
         singleEvents: true,
         orderBy: 'startTime'
-      });
-
+      };
+      
+      // Agregar timeMax si se proporciona
+      if (timeMax) {
+        params.timeMax = timeMax.toISOString();
+      }
+      
+      const response = await this.calendar.events.list(params);
       return response.data.items || [];
     } catch (error) {
-      console.error('Error al listar eventos de Google Calendar:', error);
+      console.error('Error al listar eventos:', error);
       throw error;
     }
   }

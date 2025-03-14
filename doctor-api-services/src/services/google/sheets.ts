@@ -8,6 +8,7 @@ export class GoogleSheetsService {
     // Inicializar el cliente de Google Sheets
     const auth = authenticate();
     this.sheets = google.sheets({ version: 'v4', auth });
+    console.log('GoogleSheetsService inicializado');
   }
 
   /**

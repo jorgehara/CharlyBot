@@ -1,14 +1,16 @@
-import { AppointmentsService } from './appointments';
-import { GoogleSheetsService } from './google/sheet';
 import { GoogleCalendarService } from './google/calendar';
+import { GoogleSheetsService } from './google/sheets';
+import { AppointmentService } from './appointmentService';
+import config from '../config';
 
-// Inicializar servicios
-const sheetsService = new GoogleSheetsService();
-const calendarService = new GoogleCalendarService();
-const appointmentService = new AppointmentsService();
+// Crear instancias de los servicios
+export const calendarService = new GoogleCalendarService();
+export const sheetsService = new GoogleSheetsService();
+export const appointmentService = new AppointmentService();
 
+// Exportar los servicios para uso en la aplicación
 export {
-  sheetsService,
-  calendarService,
-  appointmentService
+  GoogleCalendarService,
+  GoogleSheetsService,
+  AppointmentService
 };

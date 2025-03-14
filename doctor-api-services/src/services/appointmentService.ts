@@ -1,5 +1,6 @@
 import { calendar_v3 } from 'googleapis';
 import config from '../config';
+import { TimeSlot, SlotsResponse, BusySlot } from '../types/appointment';
 
 export class AppointmentService {
   /**
@@ -8,14 +9,19 @@ export class AppointmentService {
    * @param existingEvents Eventos existentes en el calendario
    * @returns Lista de horarios disponibles y ocupados
    */
-  async getAvailableTimeSlots(date?: string, existingEvents: calendar_v3.Schema$Event[] = []): Promise<any> {
+  async getAvailableTimeSlots(date?: string, existingEvents: calendar_v3.Schema$Event[] = []): Promise<SlotsResponse> {
     try {
       // Determinar la fecha para la cual generar horarios
       let targetDate: Date;
+      
       if (date) {
-        targetDate = new Date(date);
+        // Crear fecha en zona horaria local
+        targetDate = new Date(date + 'T00:00:00');
       } else {
+        // Si no se proporciona fecha, usar la fecha actual en zona horaria local
         targetDate = new Date();
+        // Resetear la hora a 00:00:00
+        targetDate.setHours(0, 0, 0, 0);
       }
       
       // Asegurarse de que la fecha es válida
@@ -23,7 +29,7 @@ export class AppointmentService {
         throw new Error('Fecha inválida');
       }
       
-      console.log('Generando horarios para:', targetDate.toISOString());
+      console.log('Generando horarios para:', targetDate.toISOString(), 'en zona horaria local');
       
       // Configurar horarios de consulta (8:00 AM a 8:00 PM)
       const startHour = 8;
@@ -35,8 +41,8 @@ export class AppointmentService {
       console.log('Horarios ocupados:', busySlots);
       
       // Generar todos los slots posibles para el día
-      const availableSlots = [];
-      const occupiedSlots = [];
+      const availableSlots: TimeSlot[] = [];
+      const occupiedSlots: TimeSlot[] = [];
       
       // Formatear la fecha para mostrar
       const displayDate = targetDate.toLocaleDateString('es-ES', {
@@ -46,6 +52,12 @@ export class AppointmentService {
         day: 'numeric'
       });
       
+      // Obtener la fecha actual para comparar
+      const now = new Date();
+      
+      // Determinar si la fecha objetivo es hoy
+      const isToday = targetDate.toDateString() === now.toDateString();
+      
       // Generar slots para cada hora dentro del rango de horario de consulta
       for (let hour = startHour; hour < endHour; hour++) {
         for (let minute = 0; minute < 60; minute += slotDuration) {
@@ -53,14 +65,13 @@ export class AppointmentService {
           const slotTime = new Date(targetDate);
           slotTime.setHours(hour, minute, 0, 0);
           
-          // Verificar si el slot está en el pasado
-          const now = new Date();
-          if (slotTime <= now) {
-            continue; // Saltar slots en el pasado
+          // Verificar si el slot está en el pasado (solo si es para hoy)
+          if (isToday && slotTime <= now) {
+            continue; // Saltar slots en el pasado solo para el día actual
           }
           
           // Determinar si es mañana o tarde
-          const period = hour < 12 ? 'mañana' : 'tarde';
+          const period = hour < 12 ? 'mañana' as const : 'tarde' as const;
           
           // Formatear hora para mostrar
           const displayTime = slotTime.toLocaleTimeString('es-ES', {
@@ -88,12 +99,12 @@ export class AppointmentService {
           if (isSlotBusy) {
             occupiedSlots.push({
               ...slotBase,
-              status: 'ocupado'
+              status: 'ocupado' as const
             });
           } else {
             availableSlots.push({
               ...slotBase,
-              status: 'disponible'
+              status: 'disponible' as const
             });
           }
         }
@@ -135,7 +146,7 @@ export class AppointmentService {
    * @param events Eventos existentes en el calendario
    * @returns Lista de horarios ocupados
    */
-  private getBusyTimeSlots(events: calendar_v3.Schema$Event[]): { start: string; end: string; summary?: string }[] {
+  private getBusyTimeSlots(events: calendar_v3.Schema$Event[]): BusySlot[] {
     return events
       .filter(event => event.start?.dateTime && event.end?.dateTime)
       .map(event => ({

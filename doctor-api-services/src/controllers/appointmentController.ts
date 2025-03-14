@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { calendarService, appointmentService } from '../services';
 import config from '../config';
 import { Controller } from '../types/express';
+import { SlotsResponse, TimeSlot, AppointmentInfo, WeeklySlotResponse, WeeklySlotDay } from '../types/appointment';
 
 export const getAvailableSlots: Controller = async (req, res) => {
   try {
@@ -22,7 +23,8 @@ export const getAvailableSlots: Controller = async (req, res) => {
     // Determinar la fecha para la cual buscar horarios
     let selectedDate: Date;
     if (date && typeof date === 'string' && date.trim() !== '') {
-      selectedDate = new Date(date);
+      // Crear fecha en zona horaria local
+      selectedDate = new Date(date + 'T00:00:00');
       
       // Verificar que la fecha sea válida
       if (isNaN(selectedDate.getTime())) {
@@ -32,7 +34,7 @@ export const getAvailableSlots: Controller = async (req, res) => {
         });
       }
     } else {
-      // Si no se proporciona fecha, usar la fecha actual
+      // Si no se proporciona fecha, usar la fecha actual en zona horaria local
       selectedDate = new Date();
       
       // Si es después de las 20:00, mostrar horarios para mañana
@@ -40,15 +42,25 @@ export const getAvailableSlots: Controller = async (req, res) => {
         console.log('Es tarde, mostrando horarios para mañana');
         selectedDate.setDate(selectedDate.getDate() + 1);
       }
+      
+      // Resetear la hora a 00:00:00
+      selectedDate.setHours(0, 0, 0, 0);
     }
-    
-    // Resetear la hora a 00:00:00 para obtener todos los eventos del día
-    selectedDate.setHours(0, 0, 0, 0);
     
     console.log('Fecha seleccionada:', selectedDate.toISOString());
     
-    // Obtener eventos existentes
-    const existingEvents = await calendarService.listEvents(config.google.calendarId!, selectedDate);
+    // Obtener eventos existentes para todo el día
+    const startOfDay = new Date(selectedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    console.log('Buscando eventos desde', startOfDay.toISOString());
+    
+    const existingEvents = await calendarService.listEvents(
+      config.google.calendarId!, 
+      startOfDay
+    );
+    
+    console.log('Eventos encontrados:', existingEvents.length);
     
     // Obtener slots disponibles y ocupados
     const slotsData = await appointmentService.getAvailableTimeSlots(
@@ -368,7 +380,7 @@ export const getWeeklySlots: Controller = async (req, res) => {
     start.setHours(0, 0, 0, 0);
     
     // Generar array de 7 días a partir de la fecha de inicio
-    const weekDays = [];
+    const weekDays: Date[] = [];
     for (let i = 0; i < 7; i++) {
       const day = new Date(start);
       day.setDate(day.getDate() + i);
@@ -376,7 +388,7 @@ export const getWeeklySlots: Controller = async (req, res) => {
     }
     
     // Obtener slots para cada día
-    const weeklySlots = [];
+    const weeklySlots: WeeklySlotDay[] = [];
     for (const day of weekDays) {
       // Obtener eventos existentes
       const existingEvents = await calendarService.listEvents(config.google.calendarId!, day);
@@ -400,12 +412,14 @@ export const getWeeklySlots: Controller = async (req, res) => {
       });
     }
     
-    res.status(200).json({
+    const response: WeeklySlotResponse = {
       success: true,
       startDate: start.toISOString().split('T')[0],
       endDate: weekDays[6].toISOString().split('T')[0],
       days: weeklySlots
-    });
+    };
+    
+    res.status(200).json(response);
   } catch (error: any) {
     console.error('Error al obtener horarios semanales:', error);
     

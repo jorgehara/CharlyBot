@@ -5,23 +5,23 @@ import morgan from 'morgan';
 import routes from './routes';
 import { errorHandler } from './middleware/errorHandler';
 import config from './config';
+import { setupSwagger } from './swagger';
 
 // Crear la aplicación Express
 const app = express();
 
 // Middleware
 app.use(helmet()); // Seguridad
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-})); // CORS
+app.use(cors(config.cors)); // CORS
 app.use(morgan('dev')); // Logging
 app.use(express.json()); // Parseo de JSON
 app.use(express.urlencoded({ extended: true })); // Parseo de formularios
 
 // Rutas
 app.use('/api', routes);
+
+// Configurar Swagger
+setupSwagger(app);
 
 // Middleware de manejo de errores
 app.use(errorHandler);

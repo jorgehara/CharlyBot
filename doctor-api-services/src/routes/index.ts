@@ -85,8 +85,8 @@ router.post('/test-event', async (req, res) => {
   }
 });
 
-// Montar las rutas específicas
+// Rutas de la API
 router.use('/appointments', appointmentRoutes);
-router.use('/registration', registrationRoutes);
+router.use('/patients', registrationRoutes);
 
 export default router;
