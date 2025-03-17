@@ -1,5 +1,6 @@
 import { FC, useState } from 'react';
 import { FaCalendarAlt, FaClock, FaUser, FaPhone, FaIdCard, FaNotesMedical, FaSearch } from 'react-icons/fa';
+import { Link } from 'react-router-dom';
 
 // Interfaces para nuestros datos
 interface Patient {
@@ -404,6 +405,13 @@ const Dashboard: FC = () => {
             </div>
           )}
         </div>
+      </div>
+      
+      <div className="dashboard-actions">
+        <Link to="/calendario-detallado" className="dashboard-action-button calendar-button">
+          <span className="button-icon">📅</span>
+          <span className="button-text">Ver Calendario Detallado</span>
+        </Link>
       </div>
     </div>
   );

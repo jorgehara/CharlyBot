@@ -1,0 +1,45 @@
+/* Estilos generales para el dashboard */
+.dashboard-container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Estilos para los botones de acción */
+.dashboard-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dashboard-action-button {
+  display: flex;
+  align-items: center;
+  background-color: #4a90e2;
+  color: white;
+  padding: 10px 15px;
+  border-radius: 5px;
+  text-decoration: none;
+  transition: background-color 0.3s;
+}
+
+.dashboard-action-button:hover {
+  background-color: #357abd;
+}
+
+.button-icon {
+  margin-right: 8px;
+  font-size: 18px;
+}
+
+.button-text {
+  font-weight: 500;
+}
+
+.calendar-button {
+  background-color: #4caf50;
+}
+
+.calendar-button:hover {
+  background-color: #3d8b40;
+} 
