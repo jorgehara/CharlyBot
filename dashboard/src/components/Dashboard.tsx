@@ -1,5 +1,5 @@
 import { FC, useState } from 'react';
-import { FaCalendarAlt, FaClock, FaUser, FaPhone, FaIdCard, FaNotesMedical, FaSearch } from 'react-icons/fa';
+import { FaCalendarAlt, FaClock, FaUser, FaPhone, FaIdCard, FaNotesMedical, FaSearch, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
 
 // Interfaces para nuestros datos
@@ -114,16 +114,17 @@ interface StatCardProps {
   value: string | number;
   icon: React.ReactNode;
   color: string;
+  darkMode: boolean;
 }
 
-const StatCard: FC<StatCardProps> = ({ title, value, icon, color }) => {
+const StatCard: FC<StatCardProps> = ({ title, value, icon, color, darkMode }) => {
   return (
-    <div className="bg-white rounded-lg shadow-md p-3 flex items-center h-full">
-      <div className={`rounded-full p-2 ${color} text-white mr-3`}>
+    <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} rounded-lg shadow-md p-4 flex items-center h-full hover:shadow-lg transition-shadow`}>
+      <div className={`rounded-full p-3 ${color} text-white mr-4`}>
         {icon}
       </div>
       <div>
-        <h3 className="text-gray-500 text-xs sm:text-sm">{title}</h3>
+        <h3 className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-xs sm:text-sm font-medium`}>{title}</h3>
         <p className="text-lg sm:text-xl font-bold">{value}</p>
       </div>
     </div>
@@ -133,19 +134,20 @@ const StatCard: FC<StatCardProps> = ({ title, value, icon, color }) => {
 interface AppointmentCardProps {
   appointment: Appointment;
   onSelectPatient: (patient: Patient) => void;
+  darkMode: boolean;
 }
 
-const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatient }) => {
+const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatient, darkMode }) => {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-3 mb-2 hover:shadow-md transition-shadow">
+    <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white'} rounded-lg shadow-sm p-4 mb-2 hover:shadow-md transition-all transform hover:-translate-y-1 border-l-4 border-primary`}>
       <div className="flex justify-between items-center">
         <div className="flex items-center">
-          <div className="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center mr-2">
+          <div className="bg-primary text-white rounded-full w-10 h-10 flex items-center justify-center mr-3">
             <FaClock />
           </div>
-          <span className="font-bold">{appointment.time}</span>
+          <span className="font-bold text-lg">{appointment.time}</span>
         </div>
-        <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+        <div className={`px-3 py-1 rounded-full text-xs font-medium ${
           appointment.status === 'completed' ? 'bg-green-100 text-green-800' : 
           appointment.status === 'cancelled' ? 'bg-red-100 text-red-800' : 
           'bg-blue-100 text-blue-800'
@@ -155,22 +157,22 @@ const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatien
         </div>
       </div>
       
-      <div className="mt-2 cursor-pointer" onClick={() => onSelectPatient(appointment.patient)}>
+      <div className={`mt-3 cursor-pointer ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} p-2 rounded-md transition-colors`} onClick={() => onSelectPatient(appointment.patient)}>
         <div className="flex items-center">
-          <FaUser className="text-gray-500 mr-2" />
+          <FaUser className="text-primary mr-2" />
           <h3 className="font-medium">{appointment.patient.name} {appointment.patient.lastName}</h3>
         </div>
-        <div className="flex items-center mt-1 text-sm text-gray-600">
-          <FaIdCard className="mr-2" />
+        <div className={`flex items-center mt-2 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          <FaIdCard className={`mr-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
           <span>Afiliado: {appointment.patient.affiliateNumber}</span>
         </div>
-        <div className="flex items-center mt-1 text-sm text-gray-600">
-          <FaPhone className="mr-2" />
+        <div className={`flex items-center mt-1 text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+          <FaPhone className={`mr-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
           <span>{appointment.patient.phoneNumber}</span>
         </div>
         {appointment.notes && (
-          <div className="flex items-start mt-1 text-sm text-gray-600">
-            <FaNotesMedical className="mr-2 mt-1" />
+          <div className={`flex items-start mt-2 text-sm ${darkMode ? 'text-gray-400 bg-gray-700' : 'text-gray-600 bg-gray-50'} p-2 rounded-md`}>
+            <FaNotesMedical className="mr-2 mt-1 text-primary" />
             <span>{appointment.notes}</span>
           </div>
         )}
@@ -179,7 +181,7 @@ const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatien
   );
 };
 
-const Dashboard: FC = () => {
+const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ darkMode, toggleDarkMode }) => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showPatientDetails, setShowPatientDetails] = useState(false);
@@ -215,61 +217,74 @@ const Dashboard: FC = () => {
   };
 
   return (
-    <div className="p-3 sm:p-4 h-full">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-        <h2 className="text-lg sm:text-xl font-semibold">Panel del Doctor</h2>
-        <p className="text-sm text-gray-600 capitalize mt-1 sm:mt-0">{formattedDate}</p>
+    <div className={`p-4 sm:p-6 h-full ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-800'} transition-colors duration-200`}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold">Panel del Doctor</h2>
+        
+        <p className={`text-sm ${darkMode ? 'text-gray-400 bg-gray-800' : 'text-gray-600 bg-white'} capitalize mt-1 sm:mt-0 px-3 py-1 rounded-md shadow-sm`}>{formattedDate}</p>
+        
+        {/* Ícono para alternar el modo oscuro */}
+        <button onClick={toggleDarkMode} className="ml-4 text-sm flex items-center gap-2 bg-gray-800 text-white px-3 py-1 rounded-md shadow-sm">
+          {darkMode ? "Tema Claro" : "Tema Oscuro"}
+          {darkMode ? <FaEyeSlash className="text-gray-200" /> : <FaEye className="text-gray-200" />}
+        </button>
       </div>
       
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard 
           title="Citas Hoy" 
           value={mockAppointments.length} 
-          icon={<FaCalendarAlt size="18" />} 
+          icon={<FaCalendarAlt size="20" />} 
           color="bg-primary"
+          darkMode={darkMode}
         />
         <StatCard 
           title="Turno Mañana" 
           value={morningAppointments.length} 
-          icon={<FaClock size="18" />} 
+          icon={<FaClock size="20" />} 
           color="bg-warning"
+          darkMode={darkMode}
         />
         <StatCard 
           title="Turno Tarde" 
           value={afternoonAppointments.length} 
-          icon={<FaClock size="18" />} 
+          icon={<FaClock size="20" />} 
           color="bg-secondary"
+          darkMode={darkMode}
         />
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[calc(100vh-200px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-220px)]">
         <div className={`lg:col-span-3 flex flex-col ${showPatientDetails && window.innerWidth < 1024 ? 'hidden' : 'block'}`}>
-          <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 flex-grow overflow-y-auto">
-            <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-semibold">Citas del Día</h3>
+          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-md p-4 sm:p-5 flex-grow overflow-y-auto transition-colors duration-200`}>
+            <div className={`flex justify-between items-center mb-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} pb-3`}>
+              <h3 className="text-lg font-bold">Citas del Día</h3>
               
               {/* Buscador móvil */}
               <div className="relative block lg:hidden">
                 <input
                   type="text"
                   placeholder="Buscar..."
-                  className="pl-8 pr-3 py-1 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary text-sm w-32"
+                  className={`pl-9 pr-3 py-2 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-300'} focus:outline-none focus:ring-2 focus:ring-primary text-sm w-40`}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
-                <FaSearch className="absolute left-2 top-2 text-gray-400 text-xs" />
+                <FaSearch className={`absolute left-3 top-3 ${darkMode ? 'text-gray-400' : 'text-gray-500'} text-xs`} />
               </div>
             </div>
             
             {morningAppointments.length > 0 && (
-              <div className="mb-4">
-                <h4 className="text-md font-medium mb-2 text-primary">Turno Mañana</h4>
-                <div className="space-y-2">
+              <div className="mb-6">
+                <h4 className="text-md font-bold mb-3 text-primary flex items-center">
+                  <FaClock className="mr-2" /> Turno Mañana
+                </h4>
+                <div className="space-y-3">
                   {morningAppointments.map(appointment => (
                     <AppointmentCard 
                       key={appointment.id} 
                       appointment={appointment} 
                       onSelectPatient={handleSelectPatient}
+                      darkMode={darkMode}
                     />
                   ))}
                 </div>
@@ -278,13 +293,16 @@ const Dashboard: FC = () => {
             
             {afternoonAppointments.length > 0 && (
               <div>
-                <h4 className="text-md font-medium mb-2 text-secondary">Turno Tarde</h4>
-                <div className="space-y-2">
+                <h4 className="text-md font-bold mb-3 text-secondary flex items-center">
+                  <FaClock className="mr-2" /> Turno Tarde
+                </h4>
+                <div className="space-y-3">
                   {afternoonAppointments.map(appointment => (
                     <AppointmentCard 
                       key={appointment.id} 
                       appointment={appointment} 
                       onSelectPatient={handleSelectPatient}
+                      darkMode={darkMode}
                     />
                   ))}
                 </div>
@@ -292,8 +310,9 @@ const Dashboard: FC = () => {
             )}
             
             {mockAppointments.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                No hay citas programadas para hoy
+              <div className={`text-center py-12 ${darkMode ? 'text-gray-400 bg-gray-700' : 'text-gray-500 bg-gray-50'} rounded-lg`}>
+                <FaCalendarAlt className={`mx-auto text-4xl mb-3 ${darkMode ? 'text-gray-600' : 'text-gray-300'}`} />
+                <p className="text-lg">No hay citas programadas para hoy</p>
               </div>
             )}
           </div>
@@ -303,41 +322,42 @@ const Dashboard: FC = () => {
           {/* Botón para volver a la lista en móvil */}
           {window.innerWidth < 1024 && (
             <button 
-              className="bg-gray-200 text-gray-700 px-3 py-2 rounded-md mb-2 flex items-center justify-center lg:hidden"
+              className={`${darkMode ? 'bg-gray-800 text-primary' : 'bg-white text-primary'} px-4 py-3 rounded-md mb-2 flex items-center justify-center lg:hidden shadow-sm ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors`}
               onClick={() => setShowPatientDetails(false)}
             >
               ← Volver a la lista de citas
             </button>
           )}
           
-          <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 flex-grow-0 hidden lg:block">
-            <h3 className="text-lg font-semibold mb-3">Buscar Paciente</h3>
+          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-md p-4 sm:p-5 flex-grow-0 hidden lg:block transition-colors duration-200`}>
+            <h3 className="text-lg font-bold mb-4">Buscar Paciente</h3>
             <div className="relative">
               <input
                 type="text"
                 placeholder="Nombre, Nº Afiliado o Teléfono..."
-                className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                className={`w-full pl-10 pr-4 py-3 rounded-lg border ${darkMode ? 'bg-gray-700 border-gray-600 text-white placeholder-gray-400' : 'bg-gray-50 border-gray-300'} focus:outline-none focus:ring-2 focus:ring-primary text-sm`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
-              <FaSearch className="absolute left-3 top-3 text-gray-400" />
+              <FaSearch className={`absolute left-3 top-3.5 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
             </div>
             
-            <div className="mt-3 max-h-40 overflow-y-auto">
+            <div className={`mt-4 max-h-60 overflow-y-auto rounded-md border ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
               {searchTerm && filteredPatients.length > 0 ? (
                 filteredPatients.map(patient => (
                   <div 
                     key={patient.id} 
-                    className="p-2 border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                    className={`p-3 border-b ${darkMode ? 'border-gray-700 hover:bg-gray-700' : 'border-gray-100 hover:bg-blue-50'} cursor-pointer transition-colors`}
                     onClick={() => handleSelectPatient(patient)}
                   >
-                    <div className="font-medium">{patient.name} {patient.lastName}</div>
-                    <div className="text-sm text-gray-600">Afiliado: {patient.affiliateNumber}</div>
-                    <div className="text-sm text-gray-600">{patient.phoneNumber}</div>
+                    <div className="font-medium text-primary">{patient.name} {patient.lastName}</div>
+                    <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'} mt-1`}>Afiliado: {patient.affiliateNumber}</div>
+                    <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>{patient.phoneNumber}</div>
                   </div>
                 ))
               ) : searchTerm ? (
-                <div className="text-center py-3 text-gray-500">
+                <div className={`text-center py-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <FaSearch className={`mx-auto mb-2 ${darkMode ? 'text-gray-600' : 'text-gray-300'}`} />
                   No se encontraron pacientes
                 </div>
               ) : null}
@@ -345,11 +365,11 @@ const Dashboard: FC = () => {
           </div>
           
           {selectedPatient && (
-            <div id="patient-details" className="bg-white rounded-lg shadow-md p-3 sm:p-4 flex-grow overflow-y-auto">
-              <div className="flex justify-between items-start mb-3">
-                <h3 className="text-lg font-semibold">Detalles del Paciente</h3>
+            <div id="patient-details" className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-md p-4 sm:p-5 flex-grow overflow-y-auto transition-colors duration-200`}>
+              <div className={`flex justify-between items-start mb-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} pb-3`}>
+                <h3 className="text-lg font-bold">Detalles del Paciente</h3>
                 <button 
-                  className="text-gray-400 hover:text-gray-600"
+                  className={`${darkMode ? 'text-gray-400 hover:text-gray-300 bg-gray-700 hover:bg-gray-600' : 'text-gray-400 hover:text-gray-600 bg-gray-100 hover:bg-gray-200'} rounded-full w-8 h-8 flex items-center justify-center transition-colors`}
                   onClick={() => {
                     setSelectedPatient(null);
                     setShowPatientDetails(false);
@@ -359,46 +379,48 @@ const Dashboard: FC = () => {
                 </button>
               </div>
               
-              <div className="space-y-3">
-                <div className="flex items-center justify-center mb-3">
-                  <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
-                    <FaUser size="24" className="text-gray-500" />
+              <div className="space-y-4">
+                <div className="flex items-center justify-center mb-4">
+                  <div className={`w-20 h-20 ${darkMode ? 'bg-gray-700' : 'bg-primary bg-opacity-10'} rounded-full flex items-center justify-center`}>
+                    <FaUser size="32" className="text-primary" />
                   </div>
                 </div>
                 
-                <div className="text-center mb-3">
-                  <h4 className="text-lg font-bold">{selectedPatient.name} {selectedPatient.lastName}</h4>
+                <div className="text-center mb-4">
+                  <h4 className="text-xl font-bold">{selectedPatient.name} {selectedPatient.lastName}</h4>
                 </div>
                 
-                <div className="border-t border-b border-gray-100 py-2">
-                  <div className="flex items-center mb-1">
-                    <FaIdCard className="text-primary mr-2" />
-                    <span className="font-medium">Número de Afiliado</span>
-                  </div>
-                  <p className="pl-6">{selectedPatient.affiliateNumber}</p>
-                </div>
-                
-                <div className="border-b border-gray-100 py-2">
-                  <div className="flex items-center mb-1">
-                    <FaPhone className="text-primary mr-2" />
-                    <span className="font-medium">Teléfono</span>
-                  </div>
-                  <p className="pl-6">{selectedPatient.phoneNumber}</p>
-                </div>
-                
-                {selectedPatient.additionalInfo && (
-                  <div className="border-b border-gray-100 py-2">
-                    <div className="flex items-center mb-1">
-                      <FaNotesMedical className="text-primary mr-2" />
-                      <span className="font-medium">Información Adicional</span>
+                <div className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} rounded-lg p-4 space-y-4`}>
+                  <div className={`border-b ${darkMode ? 'border-gray-600' : 'border-gray-200'} pb-3`}>
+                    <div className="flex items-center mb-2">
+                      <FaIdCard className="text-primary mr-3 text-lg" />
+                      <span className={`font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Número de Afiliado</span>
                     </div>
-                    <p className="pl-6">{selectedPatient.additionalInfo}</p>
+                    <p className={`pl-8 ${darkMode ? 'text-white' : 'text-gray-800'} font-medium`}>{selectedPatient.affiliateNumber}</p>
                   </div>
-                )}
+                  
+                  <div className={`border-b ${darkMode ? 'border-gray-600' : 'border-gray-200'} pb-3`}>
+                    <div className="flex items-center mb-2">
+                      <FaPhone className="text-primary mr-3 text-lg" />
+                      <span className={`font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Teléfono</span>
+                    </div>
+                    <p className={`pl-8 ${darkMode ? 'text-white' : 'text-gray-800'} font-medium`}>{selectedPatient.phoneNumber}</p>
+                  </div>
+                  
+                  {selectedPatient.additionalInfo && (
+                    <div>
+                      <div className="flex items-center mb-2">
+                        <FaNotesMedical className="text-primary mr-3 text-lg" />
+                        <span className={`font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Información Adicional</span>
+                      </div>
+                      <p className={`pl-8 ${darkMode ? 'text-white bg-gray-800' : 'text-gray-800 bg-white'} p-3 rounded-md border ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>{selectedPatient.additionalInfo}</p>
+                    </div>
+                  )}
+                </div>
                 
-                <div className="pt-3">
-                  <button className="w-full bg-primary text-white px-3 py-2 rounded-md hover:bg-blue-600 transition-colors">
-                    Ver Historial Completo
+                <div className="pt-4">
+                  <button className="w-full bg-primary text-white px-4 py-3 rounded-md hover:bg-blue-600 transition-colors font-medium flex items-center justify-center">
+                    <FaNotesMedical className="mr-2" /> Ver Historial Completo
                   </button>
                 </div>
               </div>
@@ -407,14 +429,14 @@ const Dashboard: FC = () => {
         </div>
       </div>
       
-      <div className="dashboard-actions">
-        <Link to="/calendario-detallado" className="dashboard-action-button calendar-button">
-          <span className="button-icon">📅</span>
-          <span className="button-text">Ver Calendario Detallado</span>
+      <div className="dashboard-actions mt-6">
+        <Link to="/calendario-detallado" className={`${darkMode ? 'bg-gray-800 text-primary hover:bg-primary hover:text-white' : 'bg-white text-primary hover:bg-primary hover:text-white'} shadow-md rounded-lg px-5 py-3 font-medium flex items-center justify-center transition-colors`}>
+          <FaCalendarAlt className="mr-2" />
+          <span>Ver Calendario Detallado</span>
         </Link>
       </div>
     </div>
   );
 };
 
-export default Dashboard; 
+export default Dashboard;
