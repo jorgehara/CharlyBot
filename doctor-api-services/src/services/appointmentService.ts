@@ -36,7 +36,7 @@ export class AppointmentService {
       const morningEnd = 11.5;  // 11:30 AM
       const afternoonStart = 16.5; // 16:30 PM
       const afternoonEnd = 19.5;   // 19:30 PM
-      const slotDuration = 0.5;    // 30 minutos por turno
+      const slotDuration = 0.25;    // 15 minutos por turno
       
       // Generar todos los slots posibles para el día
       const allSlots: TimeSlot[] = [];
