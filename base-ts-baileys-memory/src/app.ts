@@ -84,20 +84,58 @@ export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 't
         return gotoFlow(bookAppointmentFlow);
     });
 
-// Flujo para reservar una cita
+// Flujo para construir una cita
 export const bookAppointmentFlow = addKeyword(['2', 'reservar', 'cita', 'agendar'])
-    .addAnswer('*Por favor*, indícame tu apellido y nombre, y tu *OBRA SOCIAL* (en caso de no tener se te agenderá como *CONSULTA PARTICULAR*)', { capture: true })
+    .addAnswer(
+        'Por favor, indícame tu *NOMBRE* y *APELLIDO* (ej: Juan Pérez):',
+        { capture: true }
+    )
+    .addAction(async (ctx, { state, gotoFlow }) => {
+        const name = ctx.body.trim();
+        await state.update({ clientName: name }); // Guardar el nombre en el estado
+    })
+    .addAnswer(
+        '*Por favor*, selecciona tu *OBRA SOCIAL* de la siguiente lista (en caso de no tener, se te agendará como *CONSULTA PARTICULAR*):\n\n' +
+        '1️⃣ INSSSEP\n' +
+        '2️⃣ Swiss Medical\n' +
+        '3️⃣ OSDE\n' +
+        '4️⃣ Galeno\n' +
+        '5️⃣ CONSULTA PARTICULAR',
+        { capture: true }
+    )
+    .addAction(async (ctx, { state }) => {
+        const socialWorkOption = ctx.body.trim();
+        const socialWorks = {
+            '1': 'INSSSEP',
+            '2': 'Swiss Medical',
+            '3': 'OSDE',
+            '4': 'Galeno',
+            '5': 'CONSULTA PARTICULAR',
+            '6': 'CONSULTA PARTICULAR',
+            '7': 'CONSULTA PARTICULAR',
+            '8': 'CONSULTA PARTICULAR',
+            '9': 'CONSULTA PARTICULAR',
+        };
+
+        const socialWork = socialWorks[socialWorkOption] || 'CONSULTA PARTICULAR';
+        await state.update({ socialWork }); // Guardar la obra social en el estado
+    })
+    .addAnswer(
+        '*Vamos a proceder con la reserva de tu cita.*',
+        { delay: 500 }
+    )
     .addAction(async (ctx, { flowDynamic, state }) => {
         try {
-            const { body } = ctx;
-            const [name] = body.split('\n').map(item => item.trim());
+            const clientName = state.get('clientName');
+            const socialWork = state.get('socialWork');
             const selectedSlot = state.get('selectedSlot');
             const appointmentDate = state.get('appointmentDate');
             const phone = ctx.from;
 
             // Datos de la cita a enviar a la API
             const appointmentData = {
-                clientName: name,
+                clientName,
+                socialWork,
                 phone: phone,
                 date: appointmentDate,
                 time: selectedSlot.displayTime,
@@ -113,7 +151,7 @@ export const bookAppointmentFlow = addKeyword(['2', 'reservar', 'cita', 'agendar
             });
 
             const data = await response.json();
-
+console.log('Response from API:', data);
             if (data.success) {
                 // Mensaje de confirmación de la cita
                 const message = `✅ Cita agendada exitosamente\n\n` +
@@ -121,8 +159,9 @@ export const bookAppointmentFlow = addKeyword(['2', 'reservar', 'cita', 'agendar
                     `🕒 Hora: ${data.data.start.displayTime} - ${data.data.end.displayTime}\n` +
                     `👤 Paciente: ${data.data.patient.name}\n` +
                     `📞 Teléfono: ${data.data.patient.phone}\n` +
-                    `📝 Descripción: ${data.data.summary}`;
-
+                    `🏥 Obra Social: ${data.data.patient.obrasocial}\n` +
+                    `💬 Descripción: ${data.data.summary}\n\n`;
+            
                 await flowDynamic(message);
             } else {
                 await flowDynamic('❌ Hubo un problema al agendar la cita. Por favor, intenta nuevamente.');
@@ -141,10 +180,6 @@ const welcomeFlow = addKeyword<Provider, Database>(['hi', 'hello', 'hola'])
             'Puedo ayudarte con las siguientes opciones:',
             '',
             '1️⃣ *horarios* - Ver horarios disponibles para citas',
-            '2️⃣ *mis citas* - Consultar tus citas programadas',
-            '3️⃣ *registrarme* - Registrar tus datos como paciente',
-            '4️⃣ *agendar* - Agendar una nueva cita',
-            '5️⃣ *cancelar* - Cancelar una cita existente',
             '',
             '¿En qué puedo ayudarte hoy?'
         ].join('\n')
@@ -152,7 +187,11 @@ const welcomeFlow = addKeyword<Provider, Database>(['hi', 'hello', 'hola'])
 
 // Función principal para iniciar el bot
 const main = async () => {
-    const adapterFlow = createFlow([welcomeFlow, availableSlotsFlow, bookAppointmentFlow])
+    const adapterFlow = createFlow([
+        welcomeFlow, 
+        availableSlotsFlow,
+        bookAppointmentFlow
+    ])
 
     const adapterProvider = createProvider(Provider)
     const adapterDB = new Database()

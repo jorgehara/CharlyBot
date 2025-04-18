@@ -59,11 +59,15 @@ const options: swaggerJSDoc.Options = {
         },
         AppointmentRequest: {
           type: 'object',
-          required: ['clientName', 'phone', 'date', 'time'],
+          required: ['clientName', 'socialWork', 'phone', 'date', 'time'],
           properties: {
             clientName: {
               type: 'string',
               description: 'Nombre del paciente'
+            },
+            socialWork: {
+              type: 'string',
+              description: 'Obra social del paciente (opcional)'
             },
             phone: {
               type: 'string',
@@ -96,6 +100,10 @@ const options: swaggerJSDoc.Options = {
             name: {
               type: 'string',
               description: 'Nombre del paciente'
+            },
+            obrasocial: {
+              type: 'string',
+              description: 'Obra social del paciente (opcional)'
             },
             phone: {
               type: 'string',

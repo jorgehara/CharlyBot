@@ -61,9 +61,9 @@ export const getAvailableSlots: Controller = async (req, res) => {
 
 export const createAppointment: Controller = async (req, res) => {
   try {
-    const { clientName, phone, date, time, description, email } = req.body;
+    const { clientName, socialWork, phone, date, time, description, email } = req.body;
     
-    console.log('Solicitud de creación de cita:', { clientName, phone, date, time });
+    console.log('Solicitud de creación de cita:', { clientName, socialWork, phone, date, time });
     
     if (!clientName || !phone || !date || !time) {
       return res.status(400).json({
@@ -130,7 +130,9 @@ export const createAppointment: Controller = async (req, res) => {
     // Crear evento en Google Calendar
     const eventData: any = {
       summary: `Cita médica - ${clientName}`,
+      socialWork: socialWork || null,
       description: `Cita médica para ${clientName}. Teléfono: ${phone}${email ? `. Email: ${email}` : ''}${description ? `. Notas: ${description}` : ''}`,
+
       start: {
         dateTime: startDateTime.toISOString(),
         timeZone: config.google.timezone
@@ -181,6 +183,7 @@ export const createAppointment: Controller = async (req, res) => {
         }),
         patient: {
           name: clientName,
+          obrasocial: socialWork || null,
           phone: phone,
           email: email || null
         }

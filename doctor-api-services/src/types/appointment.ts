@@ -49,6 +49,7 @@ export interface AppointmentInfo {
   displayDate: string;
   patient: {
     name: string;
+    obrasocial: string | null;
     phone: string;
     email: string | null;
   };
