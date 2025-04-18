@@ -86,7 +86,7 @@ export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 't
 
 // Flujo para reservar una cita
 export const bookAppointmentFlow = addKeyword(['2', 'reservar', 'cita', 'agendar'])
-    .addAnswer('*Por favor*, indícame tu nombre, apellido y número de afiliado de obra social o *DNI*:', { capture: true })
+    .addAnswer('*Por favor*, indícame tu apellido y nombre, y tu *OBRA SOCIAL* (en caso de no tener se te agenderá como *CONSULTA PARTICULAR*)', { capture: true })
     .addAction(async (ctx, { flowDynamic, state }) => {
         try {
             const { body } = ctx;
