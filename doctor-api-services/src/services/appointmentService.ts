@@ -81,7 +81,7 @@ export class AppointmentService {
       // Marcar los slots ocupados
       for (const slot of allSlots) {
         const slotStart = new Date(slot.time);
-        const slotEnd = new Date(slotStart.getTime() + 30 * 60 * 1000); // 30 minutos después
+        const slotEnd = new Date(slotStart.getTime() + 15 * 60 * 1000); // 30 minutos después
         
         for (const busySlot of busySlots) {
           const busyStart = new Date(busySlot.start);
