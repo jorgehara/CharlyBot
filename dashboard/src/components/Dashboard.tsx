@@ -7,6 +7,7 @@ interface Patient {
   id: string;
   name: string;
   lastName: string;
+  obraSocial: string;
   affiliateNumber: string;
   phoneNumber: string;
   additionalInfo?: string;
@@ -25,7 +26,8 @@ const mockPatients: Patient[] = [
   { 
     id: '1', 
     name: 'Juan', 
-    lastName: 'Pérez', 
+    lastName: 'Pérez',
+    obraSocial: "INSSSEP", 
     affiliateNumber: 'AF-12345', 
     phoneNumber: '555-123-4567',
     additionalInfo: 'Alergia a penicilina'
@@ -34,6 +36,7 @@ const mockPatients: Patient[] = [
     id: '2', 
     name: 'María', 
     lastName: 'González', 
+    obraSocial: "Galeano", 
     affiliateNumber: 'AF-23456', 
     phoneNumber: '555-234-5678',
     additionalInfo: 'Hipertensión'
@@ -42,6 +45,7 @@ const mockPatients: Patient[] = [
     id: '3', 
     name: 'Carlos', 
     lastName: 'Rodríguez', 
+    obraSocial: "Medicus", 
     affiliateNumber: 'AF-34567', 
     phoneNumber: '555-345-6789' 
   },
@@ -49,6 +53,7 @@ const mockPatients: Patient[] = [
     id: '4', 
     name: 'Ana', 
     lastName: 'Martínez', 
+    obraSocial: "Medisalud",
     affiliateNumber: 'AF-45678', 
     phoneNumber: '555-456-7890',
     additionalInfo: 'Embarazada - 2do trimestre'
@@ -57,6 +62,7 @@ const mockPatients: Patient[] = [
     id: '5', 
     name: 'Roberto', 
     lastName: 'López', 
+    obraSocial: "Consulta Particular",
     affiliateNumber: 'AF-56789', 
     phoneNumber: '555-567-8901' 
   },
