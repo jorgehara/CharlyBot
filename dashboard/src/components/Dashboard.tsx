@@ -217,8 +217,12 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
   };
 
   return (
-    <div className={`p-4 sm:p-6 h-full ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-800'} transition-colors duration-200`}>
+    // Contenedor principal del dashboard
+    // Cambia el color de fondo y texto según el modo oscuro
+    
+    <div className={`p-4 sm:p-6 h-full w-lg ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-800'} transition-colors duration-200`}>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+
         <h2 className="text-xl sm:text-2xl font-bold">Panel del Doctor</h2>
         
         <p className={`text-sm ${darkMode ? 'text-gray-400 bg-gray-800' : 'text-gray-600 bg-white'} capitalize mt-1 sm:mt-0 px-3 py-1 rounded-md shadow-sm`}>{formattedDate}</p>
