@@ -256,11 +256,11 @@ const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatien
     <div className={`${darkMode ? 'bg-gray-800 hover:bg-gray-750' : 'bg-white hover:bg-gray-50'} rounded-lg shadow-sm p-4 mb-3 hover:shadow-md transition-all duration-200 border-l-4 ${darkMode ? 'border-primary-600' : 'border-primary'}`}>
       <div className="flex justify-between items-center">
         <div className="flex items-center">
-          <div className={`${darkMode ? 'bg-primary-600' : 'bg-primary'} text-white rounded-lg w-10 h-10 flex items-center justify-center mr-3`}>
+          <div className={`${darkMode ? 'bg-sky-900' : 'bg-primary'} text-white rounded-lg w-10 h-10 flex items-center justify-center mr-3`}>
             <FaClock />
           </div>
           <div>
-            <span className="font-bold text-lg">{appointment.time}</span>
+            <span className={`font-bold text-lg ${darkMode ? 'text-gray-200' : 'text-gray-600'}`}>{appointment.time}</span>
             <span className={`block text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Duración: {appointment.duration} min</span>
           </div>
         </div>
@@ -280,7 +280,7 @@ const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatien
       >
         <div className="flex items-center">
           <FaUser className={`${darkMode ? 'text-primary-400' : 'text-primary'} mr-2`} />
-          <h3 className="font-medium">{appointment.patient.name} {appointment.patient.lastName}</h3>
+          <h3 className={`font-medium ${darkMode ? 'text-gray-200' : 'text-gray-600'}`}>{appointment.patient.name} {appointment.patient.lastName}</h3>
           <span className={`ml-2 text-xs px-2 py-1 rounded-full ${darkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'}`}>
             {appointment.patient.age} años
           </span>
@@ -361,7 +361,7 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
         <div className="p-5 border-b border-gray-700">
           <h1 className="text-xl font-bold flex items-center gap-4">
             <FaUserMd className="mr-2 text-primary" />
-            <span className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>MediDashboard</span>
+            <span className={`text-lg font-bold ${darkMode ? 'text-gray-200' : 'text-gray-600'}`}>Cita-Médica-Web</span>
           </h1>
         </div>
         
@@ -369,8 +369,8 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
           <div className={`w-20 h-20 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-primary bg-opacity-10'} flex items-center justify-center mb-3`}>
             <FaUserMd className="text-3xl text-primary" />
           </div>
-          <h2 className="text-lg font-bold">Dr. Alejandro López</h2>
-          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Cardiólogo</p>
+          <h2 className={`text-lg font-bold ${darkMode ? 'text-gray-200' : 'text-gray-600'}`}>Dr. Alejandro López</h2>
+          <p className={`font-bold text-lg ${darkMode ? 'text-gray-200' : 'text-gray-600'}`}>Cardiólogo</p>
         </div>
         
         <nav className="mt-8 flex-1 px-2 space-y-1">
@@ -502,12 +502,12 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
           </div>
           
           {/* Contenido principal en grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
             {/* Sección de citas (3/4 del ancho en desktop) */}
             <div className={`lg:col-span-3 ${showPatientDetails && isMobile ? 'hidden' : 'block'}`}>
               <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-xl shadow-sm p-5 h-full transition-colors duration-200`}>
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className={`text-lg font-bold flex items-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <h3 className={`text-lg font-bold flex items-center ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                     <FaCalendarDay className="mr-2 text-primary" />
                     Citas del Día
                   </h3>
@@ -528,7 +528,7 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
                 {morningAppointments.length > 0 && (
                   <div className="mb-8">
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className={`text-lg font-bold mb-4 flex items-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      <h4 className={`text-lg font-bold mb-4 flex items-center ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                         <FaClock className={`mr-2 ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`} />
                         <span>Turno Mañana</span>
                       </h4>
@@ -552,7 +552,7 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
                 {afternoonAppointments.length > 0 && (
                   <div>
                     <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-md font-bold flex items-center">
+                      <h4 className={`text-lg font-bold mb-4 flex items-center ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
                         <FaClock className={`mr-2 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`} />
                         <span>Turno Tarde</span>
                       </h4>
@@ -730,7 +730,7 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
                               </svg>
                               <span className={`font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Email</span>
                             </div>
-                            <p className={`pl-5 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                            <p className={`text-xs break-words pl-5 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
                               {selectedPatient.email}
                             </p>
                           </div>
