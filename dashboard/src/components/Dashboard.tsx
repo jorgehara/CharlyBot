@@ -6,6 +6,8 @@ import {
   FaSignOutAlt, FaUserMd, FaCalendarDay, FaProcedures, FaClinicMedical
 } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
+import { getWeeklySlots } from '../utils-API/utils';
+
 
 // Interfaces mejoradas con tipos más específicos
 interface ObraSocial {
@@ -314,6 +316,9 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
   const [searchTerm, setSearchTerm] = useState('');
   const [showPatientDetails, setShowPatientDetails] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [weeklySlots, setWeeklySlots] = useState<any>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   
   // Manejar cambio de tamaño de pantalla
   useEffect(() => {
@@ -333,6 +338,24 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
     month: 'long', 
     day: 'numeric' 
   });
+
+  useEffect(() => {
+    const fetchWeeklySlots = async () => {
+      try {
+        setLoading(true);
+        const today = new Date().toISOString().split('T')[0];
+        const data = await getWeeklySlots(today);
+        setWeeklySlots(data);
+      } catch (error) {
+        console.log('Error fetching weekly slots:', error);
+        setError('Error fetching weekly slots.');
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    fetchWeeklySlots();
+  }, []);
   
   // Filtrar pacientes por búsqueda
   const filteredPatients = mockPatients.filter(patient => 
@@ -353,6 +376,9 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
       }, 100);
     }
   };
+
+  if (loading) return <p>Cargando turnos...</p>;
+  if (error) return <p>{error}</p>;
 
   return (
     <div className={`flex h-screen overflow-hidden ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -467,38 +493,47 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           {/* Tarjetas de estadísticas */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatCard 
-              title="Citas Hoy" 
-              value={mockAppointments.length} 
-              icon={<FaCalendarAlt size="18" className={darkMode ? 'text-primary-400' : 'text-primary'} />} 
-              color={darkMode ? 'border-primary-600' : 'border-primary'}
-              darkMode={darkMode}
-              trend="up"
-              trendValue="+2"
-            />
-            <StatCard 
-              title="Turno Mañana" 
-              value={morningAppointments.length} 
-              icon={<FaClock size="18" className={darkMode ? 'text-yellow-400' : 'text-yellow-600'} />} 
-              color={darkMode ? 'border-yellow-600' : 'border-yellow-500'}
-              darkMode={darkMode}
-            />
-            <StatCard 
-              title="Turno Tarde" 
-              value={afternoonAppointments.length} 
-              icon={<FaClock size="18" className={darkMode ? 'text-orange-400' : 'text-orange-600'} />} 
-              color={darkMode ? 'border-orange-600' : 'border-orange-500'}
-              darkMode={darkMode}
-            />
-            <StatCard 
-              title="Pacientes Totales" 
-              value={mockPatients.length} 
-              icon={<FaUser size="18" className={darkMode ? 'text-green-400' : 'text-green-600'} />} 
-              color={darkMode ? 'border-green-600' : 'border-green-500'}
-              darkMode={darkMode}
-              trend="up"
-              trendValue="+5%"
-            />
+          
+          {weeklySlots ? (
+              <>
+                <StatCard 
+                  title="Citas Hoy" 
+                  value={weeklySlots.today?.totalCount || 'NaN'} // Total de citas de hoy
+                  icon={<FaCalendarAlt size="18" className={darkMode ? 'text-primary-400' : 'text-primary'} />}
+                  color={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                  darkMode={darkMode}
+                  trend="up"
+                  trendValue="+2"
+                />
+                <StatCard 
+                  title="Turno Mañana" 
+                  value={weeklySlots.today?.morningCount || 'NaN'} // Total de citas en la mañana
+                  icon={<FaClock size="18" className={darkMode ? 'text-yellow-400' : 'text-yellow-600'} />} 
+                  color={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                  darkMode={darkMode}
+                />
+                <StatCard 
+                  title="Turno Tarde" 
+                  value={weeklySlots.today?.afternoonCount || 'NaN'} // Total de citas en la tarde
+                  icon={<FaClock size="18" className={darkMode ? 'text-orange-400' : 'text-orange-600'} />} 
+                  color={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                  darkMode={darkMode}
+                />
+                <StatCard 
+                  title="Citas Disponibles" 
+                  value={weeklySlots.today?.availableCount || 'NaN'} // Total de citas disponibles
+                  icon={<FaUser size="18" className={darkMode ? 'text-green-400' : 'text-green-600'} />} 
+                  color={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+                  darkMode={darkMode}
+                  trend="up"
+                  trendValue="+5%"
+                />
+              </>
+            ) : (
+              <p className={`text-lg font-bold ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
+                No data available
+              </p>
+            )}
           </div>
           
           {/* Contenido principal en grid */}
@@ -770,6 +805,28 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
                 </div>
               )}
             </div>
+          </div>
+          <div>
+            <h1
+              className={`text-lg font-bold flex items-center ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}
+            >Turnos Semanales</h1>
+            {weeklySlots && (
+              <div>
+                {weeklySlots.days.map((day: any) => (
+                  <div key={day.date}>
+                    <h2
+                     className={`text-lg font-bold flex items-center ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}
+                    >{day.displayDate}</h2>
+                    <p
+                     className={`text-lg font-bold flex items-center ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}
+                    >Disponibles: {day.availableCount}</p>
+                    <p
+                     className={`text-lg font-bold flex items-center ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}
+                      >Ocupados: {day.occupiedCount}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </main>
       </div>
