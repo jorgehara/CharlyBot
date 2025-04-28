@@ -316,7 +316,15 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
   const [searchTerm, setSearchTerm] = useState('');
   const [showPatientDetails, setShowPatientDetails] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
-  const [weeklySlots, setWeeklySlots] = useState<any>(null);
+  const [weeklySlots, setWeeklySlots] = useState<any>({
+    today: {
+      totalCount: 0,
+      morning: [],
+      afternoon: [],
+      occupied: [], // Agrega esta línea
+    },
+    days: [],
+  });
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -343,17 +351,31 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
     const fetchWeeklySlots = async () => {
       try {
         setLoading(true);
-        const today = new Date().toISOString().split('T')[0];
-        const data = await getWeeklySlots(today);
-        setWeeklySlots(data);
+        const response = await fetch('http://localhost:3001/api/appointments/available-slots');
+        const data = await response.json();
+
+        if (data.success) {
+          const mappedSlots = {
+            today: {
+              totalCount: data.available.total + data.occupied.total,
+              morning: [...data.available.morning, ...data.occupied.morning],
+              afternoon: [...data.available.afternoon, ...data.occupied.afternoon],
+              occupied: [...data.occupied.morning, ...data.occupied.afternoon], // Agrega esta línea
+            },
+            days: data.days || [], // Asegúrate de que `days` exista
+          };
+          setWeeklySlots(mappedSlots);
+        } else {
+          setError('Error al obtener los datos de la API.');
+        }
       } catch (error) {
-        console.log('Error fetching weekly slots:', error);
-        setError('Error fetching weekly slots.');
+        console.error('Error fetching weekly slots:', error);
+        setError('Error al conectar con el servidor.');
       } finally {
         setLoading(false);
       }
     };
-  
+
     fetchWeeklySlots();
   }, []);
   
@@ -379,6 +401,8 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
 
   if (loading) return <p>Cargando turnos...</p>;
   if (error) return <p>{error}</p>;
+
+  const availableAppointments = weeklySlots.today.morning?.length + weeklySlots.today.afternoon?.length - weeklySlots.today.occupied?.length || 0;
 
   return (
     <div className={`flex h-screen overflow-hidden ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -491,50 +515,49 @@ const Dashboard: FC<{ darkMode: boolean; toggleDarkMode: () => void }> = ({ dark
         
         {/* Contenido desplazable */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          {/* Tarjetas de estadísticas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          
-          {weeklySlots ? (
-              <>
-                <StatCard 
-                  title="Citas Hoy" 
-                  value={weeklySlots.today?.totalCount || 'NaN'} // Total de citas de hoy
-                  icon={<FaCalendarAlt size="18" className={darkMode ? 'text-primary-400' : 'text-primary'} />}
-                  color={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
-                  darkMode={darkMode}
-                  trend="up"
-                  trendValue="+2"
-                />
-                <StatCard 
-                  title="Turno Mañana" 
-                  value={weeklySlots.today?.morningCount || 'NaN'} // Total de citas en la mañana
-                  icon={<FaClock size="18" className={darkMode ? 'text-yellow-400' : 'text-yellow-600'} />} 
-                  color={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
-                  darkMode={darkMode}
-                />
-                <StatCard 
-                  title="Turno Tarde" 
-                  value={weeklySlots.today?.afternoonCount || 'NaN'} // Total de citas en la tarde
-                  icon={<FaClock size="18" className={darkMode ? 'text-orange-400' : 'text-orange-600'} />} 
-                  color={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
-                  darkMode={darkMode}
-                />
-                <StatCard 
-                  title="Citas Disponibles" 
-                  value={weeklySlots.today?.availableCount || 'NaN'} // Total de citas disponibles
-                  icon={<FaUser size="18" className={darkMode ? 'text-green-400' : 'text-green-600'} />} 
-                  color={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
-                  darkMode={darkMode}
-                  trend="up"
-                  trendValue="+5%"
-                />
-              </>
-            ) : (
-              <p className={`text-lg font-bold ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>
-                No data available
-              </p>
-            )}
-          </div>
+  {/* Tarjetas de estadísticas mejoradas */}
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+  {weeklySlots.today ? (
+    <>
+      <StatCard
+        title="Citas Hoy"
+        value={weeklySlots.today.totalCount || "0"}
+        icon={<FaCalendarAlt size="18" className={darkMode ? "text-primary-400" : "text-primary"} />}
+        color={darkMode ? "text-gray-300" : "text-gray-700"}
+        darkMode={darkMode}
+        trend="up"
+        trendValue="+2"
+      />
+      <StatCard
+        title="Turno Mañana"
+        value={weeklySlots.today.morning?.length || "0"}
+        icon={<FaClock size="18" className={darkMode ? "text-yellow-400" : "text-yellow-600"} />}
+        color={darkMode ? "text-gray-300" : "text-gray-700"}
+        darkMode={darkMode}
+      />
+      <StatCard
+        title="Turno Tarde"
+        value={weeklySlots.today.afternoon?.length || "0"}
+        icon={<FaClock size="18" className={darkMode ? "text-orange-400" : "text-orange-600"} />}
+        color={darkMode ? "text-gray-300" : "text-gray-700"}
+        darkMode={darkMode}
+      />
+      <StatCard
+        title="Citas Disponibles"
+        value={availableAppointments}
+        icon={<FaUser size="18" className={darkMode ? "text-green-400" : "text-green-600"} />}
+        color={darkMode ? "text-gray-300" : "text-gray-700"}
+        darkMode={darkMode}
+        trend="up"
+        trendValue="+5%"
+      />
+    </>
+  ) : (
+    <p className={`text-lg font-bold ${darkMode ? "text-gray-300" : "text-gray-500"}`}>
+      No hay datos disponibles
+    </p>
+  )}
+</div>
           
           {/* Contenido principal en grid */}
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
