@@ -23,19 +23,19 @@ const Header: FC = () => {
         
         <div className="flex space-x-2">
           <button 
-            className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 text-yellow-300' : 'bg-gray-100 text-gray-700'} transition-colors duration-200`}
+            className={`p-2 rounded-full ${darkMode ? 'bg-gray-700 text-yellow-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'} transition-colors duration-200`}
             onClick={toggleDarkMode}
             title={darkMode ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
           >
             {darkMode ? <FaEyeSlash size="18" /> : <FaEye size="18" />}
           </button>
           
-          <button className={`relative p-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+          <button className={`relative p-1 ${darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-primary'}`}>
             <FaBell size="18" />
             <span className="absolute top-0 right-0 h-3 w-3 bg-red-500 rounded-full text-xs text-white flex items-center justify-center"></span>
           </button>
           
-          <button className={`relative p-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+          <button className={`relative p-1 ${darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-600 hover:text-primary'}`}>
             <FaEnvelope size="18" />
             <span className="absolute top-0 right-0 h-3 w-3 bg-red-500 rounded-full text-xs text-white flex items-center justify-center"></span>
           </button>
