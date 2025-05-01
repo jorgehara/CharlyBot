@@ -107,6 +107,7 @@ export const createAppointment: Controller = async (req, res) => {
     
     // Verificar si el horario está disponible
     const existingEvents = await calendarService.listEvents(config.google.calendarId!, new Date(date));
+    
     const busySlots = existingEvents
       .filter(event => event.start?.dateTime && event.end?.dateTime)
       .map(event => ({
@@ -127,12 +128,20 @@ export const createAppointment: Controller = async (req, res) => {
       });
     }
     
-    // Crear evento en Google Calendar
+    // Crear evento en Google Calendar con formato mejorado
     const eventData: any = {
-      summary: `Cita médica - ${clientName}`,
-      socialWork: socialWork || null,
-      description: `Cita médica para ${clientName}. Teléfono: ${phone}${email ? `. Email: ${email}` : ''}${description ? `. Notas: ${description}` : ''}`,
+      summary: `🏥 Consulta Médica - ${clientName}`,
+      description: `
+📋 Detalles de la Cita:
+------------------
+👤 Paciente: ${clientName}
+🏥 Obra Social: ${socialWork || 'No especificada'}
+📞 Teléfono: ${phone}
+${email ? `📧 Email: ${email}` : ''}
+${description ? `\n📝 Notas adicionales:\n${description}` : ''}
 
+ℹ️ Esta cita fue generada automáticamente por el sistema de reservas.
+      `.trim(),
       start: {
         dateTime: startDateTime.toISOString(),
         timeZone: config.google.timezone
@@ -141,12 +150,22 @@ export const createAppointment: Controller = async (req, res) => {
         dateTime: endDateTime.toISOString(),
         timeZone: config.google.timezone
       },
-      // Sin attendees para evitar el error de permisos
+      colorId: "11", // Color azul para las citas médicas
       reminders: {
         useDefault: false,
         overrides: [
+          { method: 'popup', minutes: 60 },
           { method: 'popup', minutes: 30 }
         ]
+      },
+      // Agregar metadatos personalizados
+      extendedProperties: {
+        private: {
+          patientPhone: phone,
+          patientEmail: email || '',
+          socialWork: socialWork || '',
+          appointmentType: 'medical'
+        }
       }
     };
     

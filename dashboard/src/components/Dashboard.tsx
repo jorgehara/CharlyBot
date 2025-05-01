@@ -4,6 +4,7 @@ import {
   FaChevronLeft, FaHistory, FaUserMd, FaCalendarDay,
   FaCalendarAlt, FaIdCard, FaPhone, FaEnvelope
 } from 'react-icons/fa';
+import { FaUserDoctor } from "react-icons/fa6";
 import { useTheme } from '../context/ThemeContext';
 
 // Interfaces mejoradas con tipos más específicos
@@ -156,9 +157,12 @@ const Dashboard: FC = () => {
       <div className={`hidden md:flex flex-shrink-0 transition-all duration-300 ease-in-out
         ${darkMode ? 'bg-dark text-white' : 'bg-white text-gray-800'}`}>
         <div className="flex flex-col h-full w-64">
-          <div className="flex items-center justify-between h-16 px-4">
-            <h1 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-              Panel Médico
+          <div className="flex flex-col items-center justify-center h-32 px-4 space-y-3">
+            <div className={`text-4xl transform transition-all duration-300 hover:scale-110 ${darkMode ? 'text-primary-light' : 'text-primary'}`}>
+              <FaUserDoctor />
+            </div>
+            <h1 className={`text-xl font-semibold text-center ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              Cita Médica
             </h1>
           </div>
           
@@ -186,7 +190,7 @@ const Dashboard: FC = () => {
               <FaChevronLeft size={20} />
             </button>
             <h2 className={`text-xl font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-              Panel del Doctor
+              Dr. Daniel Kulinka
             </h2>
           </div>
 

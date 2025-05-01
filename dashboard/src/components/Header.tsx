@@ -1,5 +1,6 @@
 import { FC } from 'react';
 import { FaBell, FaEnvelope, FaSearch, FaUser, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaUserDoctor } from "react-icons/fa6";
 import { useTheme } from '../context/ThemeContext';
 
 const Header: FC = () => {
@@ -7,8 +8,13 @@ const Header: FC = () => {
 
   return (
     <header className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} shadow-md py-2 px-4 flex justify-between items-center sticky top-0 z-10 transition-colors duration-200`}>
-      <div className="flex items-center">
-        <h1 className="text-xl font-bold">Dashboard Médico</h1>
+      <div className="flex items-center space-x-3">
+        <div className="flex flex-col items-center sm:flex-row sm:space-x-3">
+          <div className={`text-2xl sm:text-3xl transform transition-all duration-300 hover:scale-110 ${darkMode ? 'text-primary-light' : 'text-primary'}`}>
+            <FaUserDoctor />
+          </div>
+          <h1 className="text-lg sm:text-xl font-bold">Cita Médica</h1>
+        </div>
       </div>
       
       <div className="flex items-center space-x-3">
@@ -29,18 +35,20 @@ const Header: FC = () => {
           >
             {darkMode ? <FaEyeSlash size="18" /> : <FaEye size="18" />}
           </button>
-          
-          <button className={`relative p-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            <FaBell size="18" />
-            <span className="absolute top-0 right-0 h-3 w-3 bg-red-500 rounded-full text-xs text-white flex items-center justify-center"></span>
-          </button>
-          
-          <button className={`relative p-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            <FaEnvelope size="18" />
-            <span className="absolute top-0 right-0 h-3 w-3 bg-red-500 rounded-full text-xs text-white flex items-center justify-center"></span>
-          </button>
-          
-          <div className={`border-l ${darkMode ? 'border-gray-600' : 'border-gray-300'} h-6 mx-1`}></div>
+
+          <div className="hidden sm:flex items-center space-x-2">
+            <button className={`relative p-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              <FaBell size="18" />
+              <span className="absolute top-0 right-0 h-3 w-3 bg-red-500 rounded-full text-xs text-white flex items-center justify-center"></span>
+            </button>
+            
+            <button className={`relative p-1 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              <FaEnvelope size="18" />
+              <span className="absolute top-0 right-0 h-3 w-3 bg-red-500 rounded-full text-xs text-white flex items-center justify-center"></span>
+            </button>
+            
+            <div className={`border-l ${darkMode ? 'border-gray-600' : 'border-gray-300'} h-6 mx-1`}></div>
+          </div>
           
           <div className="flex items-center space-x-2">
             <div className={`w-8 h-8 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-300'} flex items-center justify-center`}>
@@ -54,4 +62,4 @@ const Header: FC = () => {
   );
 };
 
-export default Header; 
+export default Header;
