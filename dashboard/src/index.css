@@ -2,92 +2,54 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Estilos personalizados adicionales si son necesarios */
-body {
-  @apply bg-gray-100 overflow-hidden;
-}
-
-.sidebar-icon {
-  @apply relative flex items-center justify-center h-12 w-12 mt-2 mb-2 mx-auto shadow-lg
-  bg-gray-800 text-green-500 hover:bg-green-600 hover:text-white
-  rounded-3xl hover:rounded-xl transition-all duration-300 ease-linear cursor-pointer;
-}
-
-.sidebar-tooltip {
-  @apply absolute w-auto p-2 m-2 min-w-max left-14 rounded-md shadow-md
-  text-white bg-gray-900 text-xs font-bold transition-all duration-100 scale-0 origin-left z-50;
-}
-
-.sidebar-icon:hover .sidebar-tooltip {
-  @apply scale-100;
-}
-
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
-  background-color: #213547;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
+@layer base {
   :root {
-    color: #213547;
-    background-color: #ffffff;
+    --color-primary: #3B82F6;
+    --color-secondary: #10B981;
   }
-  a:hover {
-    color: #747bff;
+
+  .dark {
+    --color-primary: #60A5FA;
+    --color-secondary: #34D399;
   }
-  button {
-    background-color: #f9f9f9;
+}
+
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200;
+  }
+
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-dark text-white
+      dark:bg-primary-dark dark:hover:bg-primary;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-white hover:bg-[#059669]
+      dark:bg-[#059669] dark:hover:bg-secondary;
+  }
+
+  .input {
+    @apply px-4 py-2 rounded-lg border border-gray-300 
+      dark:border-gray-600 dark:bg-dark-light dark:text-white
+      focus:outline-none focus:ring-2 focus:ring-primary dark:focus:ring-primary-light;
+  }
+
+  .card {
+    @apply bg-white dark:bg-dark-light rounded-xl shadow-sm 
+      border border-gray-100 dark:border-gray-800
+      hover:shadow-md transition-shadow duration-200;
+  }
+
+  .sidebar-icon {
+    @apply relative flex items-center justify-center h-12 w-12 mt-2 mb-2 mx-auto 
+      shadow-lg bg-gray-800 text-primary-light hover:bg-primary hover:text-white
+      rounded-3xl hover:rounded-xl transition-all duration-300 ease-linear cursor-pointer;
+  }
+
+  .sidebar-tooltip {
+    @apply absolute w-auto p-2 m-2 min-w-max left-14 rounded-md shadow-md
+      text-white bg-gray-900 dark:bg-dark-darker
+      text-xs font-bold transition-all duration-100 scale-0 origin-left z-50;
   }
 }

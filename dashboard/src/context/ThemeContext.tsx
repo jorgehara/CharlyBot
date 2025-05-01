@@ -1,11 +1,32 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-// Definimos el contexto del tema
-const ThemeContext = createContext<{ darkMode: boolean; toggleDarkMode: () => void } | undefined>(undefined);
+interface ThemeContextType {
+  darkMode: boolean;
+  toggleDarkMode: () => void;
+}
 
-// Proveedor del contexto
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+
 export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [darkMode, setDarkMode] = useState<boolean>(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    // Recuperar preferencia guardada o usar preferencia del sistema
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme) {
+      return savedTheme === 'dark';
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  });
+
+  useEffect(() => {
+    // Actualizar clase en el documento y guardar preferencia
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
 
   const toggleDarkMode = () => {
     setDarkMode(prevMode => !prevMode);
@@ -18,11 +39,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   );
 };
 
-// Hook para usar el contexto
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
   return context;
-}; 
+};
