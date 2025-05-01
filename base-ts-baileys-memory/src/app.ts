@@ -222,7 +222,7 @@ export const goodbyeFlow = addKeyword(['bye', 'adiós', 'chao', 'chau'])
 
 // Flujo de bienvenida
 const welcomeFlow = addKeyword<Provider, Database>(['hi', 'hello', 'hola'])
-    .addAnswer(`🩺 *¡Bienvenido al Asistente Virtual del Consultorio Médico!* 🩺`)
+    .addAnswer(`🤖🩺 *¡Bienvenido al Asistente Virtual del Consultorio Médico!* 🩺`)
     .addAnswer(
         [
             'Puedo ayudarte con las siguientes opciones:',
