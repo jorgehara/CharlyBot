@@ -69,4 +69,4 @@ export interface WeeklySlotResponse {
   startDate: string;
   endDate: string;
   days: WeeklySlotDay[];
-} 
+}

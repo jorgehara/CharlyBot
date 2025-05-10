@@ -148,4 +148,34 @@ router.delete('/:id', appointmentController.deleteAppointment);
  */
 router.get('/weekly-slots', appointmentController.getWeeklySlots);
 
+/**
+ * @swagger
+ * /appointments/confirm-iteration:
+ *   get:
+ *     summary: Confirma si el usuario desea continuar con la iteración
+ *     description: Devuelve un mensaje preguntando si el usuario desea continuar
+ *     responses:
+ *       200:
+ *         description: Opciones de confirmación
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 options:
+ *                   type: object
+ *                   properties:
+ *                     yes:
+ *                       type: string
+ *                     no:
+ *                       type: string
+ *       500:
+ *         description: Error del servidor
+ */
+router.get('/confirm-iteration', appointmentController.confirmIterationContinue);
+
 export default router;

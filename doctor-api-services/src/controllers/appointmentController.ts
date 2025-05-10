@@ -247,31 +247,56 @@ export const listAppointments: Controller = async (req, res) => {
     }
     
     // Determinar la fecha para la cual listar eventos
-    let selectedDate: Date;
+    let selectedDate = new Date();
     if (date && typeof date === 'string' && date.trim() !== '') {
       selectedDate = new Date(date);
-    } else {
-      selectedDate = new Date();
     }
     
+    // Configurar el rango de tiempo para el día seleccionado
+    const startOfDay = new Date(selectedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(selectedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
     // Obtener eventos
-    const events = await calendarService.listEvents(config.google.calendarId!, selectedDate);
+    const events = await calendarService.listEvents(config.google.calendarId!, startOfDay, endOfDay);
     
     // Formatear eventos para la respuesta
-    const formattedEvents = events.map(event => ({
-      id: event.id,
-      summary: event.summary,
-      description: event.description,
-      start: event.start,
-      end: event.end,
-      created: event.created,
-      updated: event.updated,
-      status: event.status
-    }));
+    const formattedEvents = events.map(event => {
+      // Extraer los datos del paciente de las propiedades extendidas
+      const patientData = event.extendedProperties?.private || {};
+      
+      return {
+        id: event.id,
+        summary: event.summary,
+        description: event.description,
+        start: {
+          dateTime: event.start?.dateTime,
+          timeZone: event.start?.timeZone
+        },
+        end: {
+          dateTime: event.end?.dateTime,
+          timeZone: event.end?.timeZone
+        },
+        status: event.status || 'pendiente',
+        colorId: event.colorId,
+        created: event.created,
+        updated: event.updated,
+        extendedProperties: {
+          private: {
+            patientName: patientData.patientName,
+            patientPhone: patientData.patientPhone,
+            patientEmail: patientData.patientEmail,
+            socialWork: patientData.socialWork
+          }
+        }
+      };
+    });
     
     res.status(200).json({
       success: true,
-      date: date || new Date().toISOString().split('T')[0],
+      date: selectedDate.toISOString().split('T')[0],
       events: formattedEvents
     });
   } catch (error: any) {
@@ -403,6 +428,28 @@ export const getWeeklySlots: Controller = async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Error al obtener horarios semanales'
+    });
+  }
+};
+
+export const confirmIterationContinue: Controller = async (req, res) => {
+  try {
+    const response = {
+      success: true,
+      message: '¿Desea continuar con la iteración?',
+      options: {
+        yes: 'Sí, continuar',
+        no: 'No, finalizar'
+      }
+    };
+    
+    res.status(200).json(response);
+  } catch (error: any) {
+    console.error('Error al confirmar iteración:', error);
+    
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error al procesar la confirmación'
     });
   }
 };

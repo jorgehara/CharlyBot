@@ -11,43 +11,41 @@ export class AppointmentService {
    */
   async getAvailableTimeSlots(date?: string, existingEvents: calendar_v3.Schema$Event[] = []): Promise<SlotsResponse> {
     try {
-      // Determinar la fecha para la cual generar horarios
       let targetDate: Date;
       
       if (date) {
-        // Crear fecha en zona horaria local
         targetDate = new Date(date + 'T00:00:00');
       } else {
-        // Si no se proporciona fecha, usar la fecha actual en zona horaria local
         targetDate = new Date();
-        // Resetear la hora a 00:00:00
         targetDate.setHours(0, 0, 0, 0);
       }
       
-      // Verificar que la fecha sea válida
       if (isNaN(targetDate.getTime())) {
         throw new Error('Fecha inválida');
       }
       
       console.log('Generando horarios para:', targetDate.toISOString(), 'en zona horaria local');
       
-      // Configurar horarios de consulta (horarios ajustados)
       const morningStart = 8.5; // 8:30 AM
       const morningEnd = 11.5;  // 11:30 AM
       const afternoonStart = 16.5; // 16:30 PM
       const afternoonEnd = 19.5;   // 19:30 PM
-      const slotDuration = 0.25;    // 15 minutos por turno
+      const slotDuration = 0.5;    // 30 minutos por turno
       
-      // Generar todos los slots posibles para el día
       const allSlots: TimeSlot[] = [];
       
       // Generar slots de la mañana
       for (let hour = morningStart; hour < morningEnd; hour += slotDuration) {
         const slotTime = new Date(targetDate);
         const hourInt = Math.floor(hour);
-        const minuteInt = (hour - hourInt) * 60;
+        const minuteInt = Math.round((hour - hourInt) * 60);
         
         slotTime.setHours(hourInt, minuteInt, 0, 0);
+        
+        // No agregar horarios pasados si es hoy
+        if (this.isSameDay(slotTime, new Date()) && slotTime <= new Date()) {
+          continue;
+        }
         
         allSlots.push({
           time: slotTime.toISOString(),
@@ -62,9 +60,14 @@ export class AppointmentService {
       for (let hour = afternoonStart; hour < afternoonEnd; hour += slotDuration) {
         const slotTime = new Date(targetDate);
         const hourInt = Math.floor(hour);
-        const minuteInt = (hour - hourInt) * 60;
+        const minuteInt = Math.round((hour - hourInt) * 60);
         
         slotTime.setHours(hourInt, minuteInt, 0, 0);
+        
+        // No agregar horarios pasados si es hoy
+        if (this.isSameDay(slotTime, new Date()) && slotTime <= new Date()) {
+          continue;
+        }
         
         allSlots.push({
           time: slotTime.toISOString(),
@@ -75,26 +78,28 @@ export class AppointmentService {
         });
       }
       
-      // Obtener los horarios ocupados
-      const busySlots = this.getBusyTimeSlots(existingEvents);
+      // Obtener y procesar los horarios ocupados
+      const busySlots = existingEvents
+        .filter(event => event.start?.dateTime && event.end?.dateTime)
+        .map(event => ({
+          start: new Date(event.start!.dateTime!),
+          end: new Date(event.end!.dateTime!),
+          summary: event.summary || 'Ocupado'
+        }));
       
       // Marcar los slots ocupados
       for (const slot of allSlots) {
-        const slotStart = new Date(slot.time);
-        const slotEnd = new Date(slotStart.getTime() + 15 * 60 * 1000); // 30 minutos después
+        const slotTime = new Date(slot.time);
+        const slotEnd = new Date(slotTime.getTime() + slotDuration * 60 * 60 * 1000);
         
         for (const busySlot of busySlots) {
-          const busyStart = new Date(busySlot.start);
-          const busyEnd = new Date(busySlot.end);
-          
-          // Verificar si hay solapamiento
           if (
-            (slotStart >= busyStart && slotStart < busyEnd) ||
-            (slotEnd > busyStart && slotEnd <= busyEnd) ||
-            (slotStart <= busyStart && slotEnd >= busyEnd)
+            (slotTime >= busySlot.start && slotTime < busySlot.end) ||
+            (slotEnd > busySlot.start && slotEnd <= busySlot.end) ||
+            (slotTime <= busySlot.start && slotEnd >= busySlot.end)
           ) {
             slot.status = 'ocupado';
-            // No asignar summary directamente a slot
+            slot.eventSummary = busySlot.summary;
             break;
           }
         }
@@ -106,13 +111,10 @@ export class AppointmentService {
       const afternoonAvailable = allSlots.filter(slot => slot.period === 'tarde' && slot.status === 'disponible');
       const afternoonOccupied = allSlots.filter(slot => slot.period === 'tarde' && slot.status === 'ocupado');
       
-      // Formatear la fecha para mostrar
-      const displayDate = this.formatDate(targetDate);
-      
       return {
         success: true,
         date: targetDate.toISOString().split('T')[0],
-        displayDate,
+        displayDate: this.formatDate(targetDate),
         available: {
           morning: morningAvailable,
           afternoon: afternoonAvailable,
@@ -130,32 +132,13 @@ export class AppointmentService {
       throw error;
     }
   }
-  
-  /**
-   * Obtiene los horarios ocupados a partir de eventos existentes
-   * @param events Eventos existentes en el calendario
-   * @returns Lista de horarios ocupados
-   */
-  private getBusyTimeSlots(events: calendar_v3.Schema$Event[]): BusySlot[] {
-    return events
-      .filter(event => event.start?.dateTime && event.end?.dateTime)
-      .map(event => {
-        const startDate = new Date(event.start!.dateTime!);
-        const endDate = new Date(event.end!.dateTime!);
-        
-        // Determinar si es mañana o tarde
-        const hour = startDate.getHours();
-        const period = hour < 12 ? 'mañana' as const : 'tarde' as const;
-        
-        return {
-          start: event.start!.dateTime!,
-          end: event.end!.dateTime!,
-          summary: event.summary,
-          period,
-          displayTime: this.formatTime(startDate),
-          displayDate: this.formatDate(startDate)
-        };
-      });
+
+  private isSameDay(date1: Date, date2: Date): boolean {
+    return (
+      date1.getFullYear() === date2.getFullYear() &&
+      date1.getMonth() === date2.getMonth() &&
+      date1.getDate() === date2.getDate()
+    );
   }
 
   private formatTime(date: Date): string {
@@ -174,4 +157,4 @@ export class AppointmentService {
       day: 'numeric'
     });
   }
-} 
+}
