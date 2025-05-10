@@ -70,17 +70,23 @@
   background-color: white;
   border: 1px solid #f0f0f0;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s;
   position: relative;
 }
 
 .day:hover {
   background-color: #f0f8ff;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .day.selected {
   background-color: #e6f2ff;
   border: 2px solid #4a90e2;
+}
+
+.day.has-appointments {
+  background-color: #f8f9ff;
 }
 
 .day.empty {
@@ -92,16 +98,47 @@
   font-weight: bold;
   display: block;
   margin-bottom: 5px;
+  color: #333;
+}
+
+.appointment-indicators {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .appointment-indicator {
   display: inline-block;
   background-color: #4a90e2;
   color: white;
-  font-size: 12px;
+  font-size: 11px;
   padding: 2px 6px;
   border-radius: 10px;
-  margin-top: 5px;
+  text-align: center;
+}
+
+.appointment-period-indicators {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+}
+
+.period-indicator {
+  display: inline-block;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.period-indicator.morning {
+  background-color: #ffd700;
+  color: #846800;
+}
+
+.period-indicator.afternoon {
+  background-color: #ff9800;
+  color: #ffffff;
 }
 
 .day-details {
@@ -126,7 +163,7 @@
   padding: 15px;
   background-color: white;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-  transition: transform 0.2s;
+  transition: all 0.2s;
 }
 
 .appointment-card:hover {
@@ -146,11 +183,12 @@
   border-radius: 4px;
   cursor: pointer;
   margin-top: 10px;
-  transition: background-color 0.3s;
+  transition: all 0.3s;
 }
 
 .cancel-button:hover {
   background-color: #c0392b;
+  transform: translateY(-1px);
 }
 
 .loading {
@@ -167,41 +205,3 @@
   margin-bottom: 20px;
   text-align: center;
 }
-
-.dashboard-actions {
-  margin-top: 20px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.dashboard-action-button {
-  display: flex;
-  align-items: center;
-  background-color: #4a90e2;
-  color: white;
-  padding: 10px 15px;
-  border-radius: 5px;
-  text-decoration: none;
-  transition: background-color 0.3s;
-}
-
-.dashboard-action-button:hover {
-  background-color: #357abd;
-}
-
-.button-icon {
-  margin-right: 8px;
-  font-size: 18px;
-}
-
-.button-text {
-  font-weight: 500;
-}
-
-.calendar-button {
-  background-color: #4caf50;
-}
-
-.calendar-button:hover {
-  background-color: #3d8b40;
-} 

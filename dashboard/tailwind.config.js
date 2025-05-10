@@ -4,18 +4,48 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class', // Habilitando el modo oscuro basado en clases
   theme: {
     extend: {
       colors: {
-        primary: "#3B82F6",
-        secondary: "#10B981",
-        danger: "#EF4444",
-        warning: "#F59E0B",
-        info: "#3B82F6",
+        primary: {
+          DEFAULT: "#3B82F6",
+          dark: "#2563EB",
+          light: "#60A5FA"
+        },
+        secondary: {
+          DEFAULT: "#10B981",
+          dark: "#059669",
+          light: "#34D399"
+        },
+        danger: {
+          DEFAULT: "#EF4444",
+          dark: "#DC2626",
+          light: "#F87171"
+        },
+        warning: {
+          DEFAULT: "#F59E0B",
+          dark: "#D97706",
+          light: "#FBBF24"
+        },
+        info: {
+          DEFAULT: "#3B82F6",
+          dark: "#2563EB",
+          light: "#60A5FA"
+        },
         light: "#F3F4F6",
         dark: "#1F2937",
       },
+      backgroundColor: {
+        primary: 'var(--color-primary)',
+        secondary: 'var(--color-secondary)',
+        dark: {
+          DEFAULT: '#1F2937',
+          light: '#374151',
+          darker: '#111827'
+        }
+      }
     },
   },
   plugins: [],
-} 
+}

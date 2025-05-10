@@ -10,9 +10,17 @@ import { setupSwagger } from './swagger';
 // Crear la aplicación Express
 const app = express();
 
+// Configuración de CORS
+const corsOptions = {
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+};
+
 // Middleware
 app.use(helmet()); // Seguridad
-app.use(cors(config.cors)); // CORS
+app.use(cors(corsOptions)); // CORS
 app.use(morgan('dev')); // Logging
 app.use(express.json()); // Parseo de JSON
 app.use(express.urlencoded({ extended: true })); // Parseo de formularios
