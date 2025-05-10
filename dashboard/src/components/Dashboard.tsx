@@ -2,10 +2,14 @@ import { FC, useState, useEffect } from 'react';
 import { 
   FaHome, FaCog, FaUser, FaEye, FaEyeSlash,
   FaChevronLeft, FaHistory, FaUserMd, FaCalendarDay,
-  FaCalendarAlt, FaIdCard, FaPhone, FaEnvelope
+  FaCalendarAlt, FaIdCard, FaPhone, FaEnvelope,
+  FaClock
 } from 'react-icons/fa';
+import axios from 'axios';
 import { FaUserDoctor } from "react-icons/fa6";
 import { useTheme } from '../context/ThemeContext';
+import DetailedCalendar from './DetailedCalendar';
+import AvailableSlots from './AvailableSlots';
 
 // Interfaces mejoradas con tipos más específicos
 interface ObraSocial {
@@ -141,6 +145,7 @@ const Dashboard: FC = () => {
   const { darkMode, toggleDarkMode } = useTheme();
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 1024);
+  const [currentView, setCurrentView] = useState<'calendar' | 'slots'>('calendar');
 
   useEffect(() => {
     const handleResize = () => {
@@ -168,8 +173,18 @@ const Dashboard: FC = () => {
           
           <nav className="flex-1 overflow-y-auto">
             <div className="px-4 space-y-2">
-              {/* Elementos de navegación */}
-              <NavItem icon={<FaHome />} text="Inicio" active />
+              <NavItem 
+                icon={<FaHome />} 
+                text="Inicio" 
+                active={currentView === 'calendar'} 
+                onClick={() => setCurrentView('calendar')}
+              />
+              <NavItem 
+                icon={<FaClock />} 
+                text="Horarios" 
+                active={currentView === 'slots'} 
+                onClick={() => setCurrentView('slots')}
+              />
               <NavItem icon={<FaUserMd />} text="Pacientes" />
               <NavItem icon={<FaCalendarDay />} text="Citas" />
               <NavItem icon={<FaHistory />} text="Historial" />
@@ -211,65 +226,71 @@ const Dashboard: FC = () => {
         <main className={`flex-1 overflow-y-auto p-6 transition-colors duration-200
           ${darkMode ? 'bg-dark-darker' : 'bg-gray-50'}`}>
           
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <StatCard 
-              title="Citas Hoy"
-              value={mockAppointments.length}
-              icon={<FaCalendarAlt />}
-              trend="up"
-              trendValue="+2"
-            />
-            {/* ...más StatCards... */}
-          </div>
+          {currentView === 'calendar' ? (
+            <>
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                <StatCard 
+                  title="Citas Hoy"
+                  value={mockAppointments.length}
+                  icon={<FaCalendarAlt />}
+                  trend="up"
+                  trendValue="+2"
+                />
+                {/* ...más StatCards... */}
+              </div>
 
-          {/* Appointments Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className={`lg:col-span-2 ${isMobileView && selectedPatient ? 'hidden' : ''}`}>
-              <div className={`rounded-lg shadow-sm transition-colors duration-200
-                ${darkMode ? 'bg-dark' : 'bg-white'}`}>
-                <div className={`p-4 border-b transition-colors duration-200
-                  ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                    Citas del Día
-                  </h3>
+              {/* Appointments Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className={`lg:col-span-2 ${isMobileView && selectedPatient ? 'hidden' : ''}`}>
+                  <div className={`rounded-lg shadow-sm transition-colors duration-200
+                    ${darkMode ? 'bg-dark' : 'bg-white'}`}>
+                    <div className={`p-4 border-b transition-colors duration-200
+                      ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        Citas del Día
+                      </h3>
+                    </div>
+                    <div className="p-4">
+                      <div className="space-y-4">
+                        {mockAppointments.map((appointment) => (
+                          <AppointmentCard
+                            key={appointment.id}
+                            appointment={appointment}
+                            onSelectPatient={() => setSelectedPatient(appointment.patient)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="p-4">
-                  <div className="space-y-4">
-                    {mockAppointments.map((appointment) => (
-                      <AppointmentCard
-                        key={appointment.id}
-                        appointment={appointment}
-                        onSelectPatient={() => setSelectedPatient(appointment.patient)}
-                      />
-                    ))}
+
+                {/* Patient Details Section */}
+                <div className={`${isMobileView && !selectedPatient ? 'hidden' : ''}`}>
+                  <div className={`rounded-lg shadow-sm transition-colors duration-200
+                    ${darkMode ? 'bg-dark' : 'bg-white'}`}>
+                    <div className={`p-4 border-b transition-colors duration-200
+                      ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                        Detalles del Paciente
+                      </h3>
+                    </div>
+                    {selectedPatient ? (
+                      <div className="p-4">
+                        <PatientDetails patient={selectedPatient} />
+                      </div>
+                    ) : (
+                      <div className={`p-4 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        Seleccione un paciente para ver sus detalles
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Patient Details Section */}
-            <div className={`${isMobileView && !selectedPatient ? 'hidden' : ''}`}>
-              <div className={`rounded-lg shadow-sm transition-colors duration-200
-                ${darkMode ? 'bg-dark' : 'bg-white'}`}>
-                <div className={`p-4 border-b transition-colors duration-200
-                  ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                  <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-                    Detalles del Paciente
-                  </h3>
-                </div>
-                {selectedPatient ? (
-                  <div className="p-4">
-                    <PatientDetails patient={selectedPatient} />
-                  </div>
-                ) : (
-                  <div className={`p-4 text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    Seleccione un paciente para ver sus detalles
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+            </>
+          ) : (
+            <AvailableSlots />
+          )}
         </main>
       </div>
     </div>
@@ -280,15 +301,19 @@ interface NavItemProps {
   icon: React.ReactNode;
   text: string;
   active?: boolean;
+  onClick?: () => void;
 }
 
-const NavItem: FC<NavItemProps> = ({ icon, text, active }) => {
+const NavItem: FC<NavItemProps> = ({ icon, text, active, onClick }) => {
   const { darkMode } = useTheme();
   return (
-    <button className={`flex items-center w-full px-4 py-2 rounded-lg transition-colors duration-200
-      ${active 
-        ? (darkMode ? 'bg-primary-dark text-white' : 'bg-primary text-white')
-        : (darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100')}`}>
+    <button 
+      onClick={onClick}
+      className={`flex items-center w-full px-4 py-2 rounded-lg transition-colors duration-200
+        ${active 
+          ? (darkMode ? 'bg-primary-dark text-white' : 'bg-primary text-white')
+          : (darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100')}`}
+    >
       <span className="text-xl mr-3">{icon}</span>
       <span>{text}</span>
     </button>
@@ -439,12 +464,27 @@ const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatien
     }
   };
 
+  // Función para pedir los horarios disponibles de una fecha
+  const fetchAvailableSlots = async (date: Date) => {
+    const formattedDate = date.toISOString().split('T')[0]; // Formatear la fecha a 'yyyy-MM-dd'
+    try {
+      const response = await axios.get(
+        `http://localhost:3001/api/appointments/available-slots?date=${formattedDate}`
+      );
+      return { date: formattedDate, data: response.data };
+    } catch (error) {
+      console.error('Error fetching available slots:', error);
+      throw error;
+    }
+  };
+
   return (
     <div 
       onClick={() => onSelectPatient(appointment.patient)}
       className={`p-4 rounded-lg cursor-pointer transition-colors duration-200
         ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'}`}
     >
+      <DetailedCalendar/>
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <div className={`p-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
@@ -462,6 +502,34 @@ const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatien
         <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor()}`}>
           {getStatusText()}
         </span>
+      </div>
+
+      <div className="mt-4">
+        <h4 className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+          Información de Google Calendar
+        </h4>
+        <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-700'}`}>
+          Sincronización pendiente con Google Calendar.
+        </p>
+        <button 
+
+          className={`mt-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
+        ${darkMode 
+          ? 'bg-blue-700 text-white hover:bg-blue-600' 
+          : 'bg-blue-500 text-white hover:bg-blue-400'}`}
+          onClick={
+            async () => {
+              try {
+                const availableSlots = await fetchAvailableSlots(new Date(appointment.date));
+                console.log('Horarios disponibles:', availableSlots);
+              } catch (error) {
+                console.error('Error fetching available slots:', error);
+              }
+            }
+          }
+        >
+          Sincronizar con Google Calendar
+        </button>
       </div>
     </div>
   );
