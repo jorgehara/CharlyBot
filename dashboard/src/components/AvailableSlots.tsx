@@ -1,61 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-
-interface TimeSlot {
-  time: string;
-  displayTime: string;
-  displayDate: string;
-  period: 'mañana' | 'tarde';
-  status: 'disponible' | 'ocupado';
-}
-
-interface SlotsResponse {
-  success: boolean;
-  date: string;
-  displayDate: string;
-  available: {
-    morning: TimeSlot[];
-    afternoon: TimeSlot[];
-    total: number;
-  };
-  occupied: {
-    morning: TimeSlot[];
-    afternoon: TimeSlot[];
-    total: number;
-  };
-}
+import type { TimeSlot } from '../types/google';
+import { useMongoAppointments } from '../hooks/useMongoAppointments';
 
 const AvailableSlots: React.FC = () => {
-  const [slots, setSlots] = useState<SlotsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
-
-  const fetchAvailableSlots = async (date: Date) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.get<SlotsResponse>('/appointments/available-slots', {
-        params: {
-          date: format(date, 'yyyy-MM-dd'),
-          showOccupied: true
-        }
-      });
-
-      if (response.data.success) {
-        setSlots(response.data);
-      } else {
-        setError('No se pudieron cargar los horarios');
-      }
-    } catch (err) {
-      console.error('Error al cargar horarios:', err);
-      setError('Error al cargar los horarios disponibles');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { availableSlots, loading, error, fetchAvailableSlots } = useMongoAppointments();
 
   useEffect(() => {
     fetchAvailableSlots(selectedDate);

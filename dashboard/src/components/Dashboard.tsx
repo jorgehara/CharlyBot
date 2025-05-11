@@ -10,6 +10,8 @@ import { FaUserDoctor } from "react-icons/fa6";
 import { useTheme } from '../context/ThemeContext';
 import DetailedCalendar from './DetailedCalendar';
 import AvailableSlots from './AvailableSlots';
+import { useAppointments } from '../hooks/useAppointments';
+import type { MongoAppointment, MongoPatient } from '../types/api';
 
 // Interfaces mejoradas con tipos más específicos
 interface ObraSocial {
@@ -46,16 +48,28 @@ interface Appointment {
   duration: number; // en minutos
 }
 
-// Mock data más completa
-const mockObrasSociales: ObraSocial[] = [
-  { id: '1', name: 'INSSSEP', shortName: 'INSSSEP' },
-  { id: '2', name: 'Galeano', shortName: 'GAL' },
-  { id: '3', name: 'Medicus', shortName: 'MED' },
-  { id: '4', name: 'Medisalud', shortName: 'MS' },
-  { id: '5', name: 'Consulta Particular', shortName: 'PART' },
-];
+// Tipos para los datos de MongoDB
+interface MongoPatient {
+  _id: string;
+  name: string;
+  lastName?: string;
+  phone: string;
+  email?: string;
+  obrasocial?: string;
+}
 
-const mockPatients: Patient[] = [
+interface MongoAppointment {
+  _id: string;
+  date: string;
+  time: string;
+  patient: MongoPatient;
+  status: string;
+  type: string;
+  duration: number;
+}
+
+// Lista de obras sociales
+const obrasSociales: ObraSocial[] = [
   { 
     id: '1', 
     name: 'Juan', 
@@ -142,7 +156,8 @@ const mockAppointments: Appointment[] = [
 ];
 
 const Dashboard: FC = () => {
-  const { darkMode, toggleDarkMode } = useTheme();
+  const { darkMode, toggleDarkMode } = useTheme();  const [selectedDate, setSelectedDate] = useState(new Date());
+  const { appointments, loading, error } = useAppointments(selectedDate);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 1024);
   const [currentView, setCurrentView] = useState<'calendar' | 'slots'>('calendar');

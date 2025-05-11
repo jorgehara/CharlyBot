@@ -1,39 +1,17 @@
-import express, { Request, Response } from 'express';
-import { AppointmentService } from '../services/AppointmentService';
+import express from 'express';
+import { appointmentController } from '../controllers/appointmentController';
+import cors from 'cors';
 
 const router = express.Router();
-const appointmentService = new AppointmentService();
 
-router.get('/api/appointments', async (req: Request, res: Response) => {
-    try {
-        const date = req.query.date as string;
+router.use(cors());
 
-        if (!date) {
-            return res.status(400).json({ success: false, message: 'La fecha es requerida' });
-        }
-
-        const slots = await appointmentService.getAvailableSlots(date);
-        return res.status(200).json({ success: true, data: slots });
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: 'Error al obtener las citas disponibles',
-            error: error instanceof Error ? error.message : 'Error desconocido'
-        });
-    }
-});
-
-router.post('/api/appointments', async (req: Request, res: Response) => {
-    try {
-        const appointment = await appointmentService.createAppointment(req.body);
-        return res.status(201).json({ success: true, data: appointment });
-    } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: 'Error al crear la cita',
-            error: error instanceof Error ? error.message : 'Error desconocido'
-        });
-    }
-});
+// Rutas de citas médicas
+router.get('/api/appointments/available-slots', appointmentController.getAvailableSlots);
+router.get('/api/appointments', appointmentController.getAppointments);
+router.get('/api/appointments/:id', appointmentController.getAppointmentById);
+router.post('/api/appointments', appointmentController.createAppointment);
+router.put('/api/appointments/:id', appointmentController.updateAppointment);
+router.delete('/api/appointments/:id', appointmentController.deleteAppointment);
 
 export default router;
