@@ -1,10 +1,22 @@
-import { createBot, createProvider, createFlow, addKeyword } from '@builderbot/bot'
-import { MemoryDB as Database } from '@builderbot/bot'
+import { createBot, createProvider, createFlow, addKeyword, MemoryDB } from '@builderbot/bot'
 import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
-import fetch from 'node-fetch';
-import { format } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
 
+import fetch from 'node-fetch'
+import { format } from 'date-fns'
+import { toZonedTime } from 'date-fns-tz'
+import express from 'express'
+import dotenv from 'dotenv'
+import { connectDB } from './database/connection'
+import { MongoAdapter } from '@builderbot/database-mongo'
+
+
+dotenv.config()
+
+// Configuración de MongoDB
+export const adapterDB = new MongoAdapter({
+    dbUri: process.env.MONGO_DB_URI || 'mongodb://localhost:27017',
+    dbName: process.env.MONGO_DB_NAME || 'charlybotv3'
+})
 
 const PORT = process.env.PORT ?? 3008
 
@@ -20,21 +32,26 @@ export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 't
         const currentHour = parseInt(format(today, 'HH'), 10);
         const currentMinute = parseInt(format(today, 'mm'), 10);
 
-        // Función para obtener el siguiente día hábil
-        const getNextWorkingDay = (date) => {
+        // Removed unused variable currentMinutebilbil hábil
+        const getNextWorkingDay = (date: Date): Date => {
             const nextDate = new Date(date);
             do {
                 nextDate.setDate(nextDate.getDate() + 1);
-            } while (nextDate.getDay() === 0 || nextDate.getDay() === 6); // domingo o sábado
+            } while (nextDate.getDay() === 0 || nextDate.getDay() === 6);
             return nextDate;
         };
 
         // Función para pedir los horarios disponibles de una fecha
-        const fetchAvailableSlots = async (date) => {
+        const fetchAvailableSlots = async (date: Date) => {
             const formattedDate = format(date, 'yyyy-MM-dd');
-            const res = await fetch(`http://localhost:3001/api/appointments/available-slots?date=${formattedDate}`);
-            const data = await res.json();
-            return { date: formattedDate, data };
+            try {
+                const response = await fetch(`http://localhost:3001/api/appointments?date=${formattedDate}`);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error fetching slots:', error);
+                return { data: { available: { morning: [], afternoon: [] }, success: false } };
+            }
         };
 
         // Intentar con hoy si es día hábil y antes de las 18:00
@@ -48,29 +65,24 @@ export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 't
             slotResponse = await fetchAvailableSlots(today);
         }
 
-        // Si hoy no tiene horarios disponibles o no es día hábil, buscar siguiente día hábil
-        if (
-            !slotResponse.data.success ||
-            (
-                slotResponse.data.available.morning.length === 0 &&
-                slotResponse.data.available.afternoon.length === 0
-            )
-        ) {
-            appointmentDate = getNextWorkingDay(today);
-            slotResponse = await fetchAvailableSlots(appointmentDate);
-        }
-
+// Si hoy no tiene horarios disponibles o no es día hábil, buscar siguiente día hábil
+if (!slotResponse.data.success ||
+    (slotResponse.data.available.morning.length === 0 &&
+     slotResponse.data.available.afternoon.length === 0)
+) {
+    appointmentDate = getNextWorkingDay(today);
+    slotResponse = await fetchAvailableSlots(appointmentDate);
+}
         const { data } = slotResponse;
 
         if (data.success) {
-            let message = `Horarios disponibles para el 👉 *${data.displayDate}*:\n\n`;
+            slotResponse = await fetchAvailableSlots(appointmentDate) as { data: { available: { morning: any[]; afternoon: any[]; }; success: boolean; displayDate?: string; }; };            let message = `Horarios disponibles para el 👉 *${data.displayDate}*:\n\n`;
             const slots = [];
-
             // Combinar los horarios de la mañana y la tarde en un solo array
             slots.push(...data.available.morning, ...data.available.afternoon);
 
             if (slots.length === 0) {
-                await flowDynamic('No hay horarios disponibles para el día solicitado.');
+            const message = `Horarios disponibles para el 👉 *${data.displayDate || 'fecha no especificada'}*:\n\n`;                await flowDynamic('No hay horarios disponibles para el día solicitado.');
                 return;
             }
 
@@ -125,12 +137,12 @@ export const bookAppointmentFlow = addKeyword(['2', 'reservar', 'cita', 'agendar
         'Por favor, indícame tu *NOMBRE* y *APELLIDO* (ej: Juan Pérez):',
         { capture: true }
     )
-    .addAction(async (ctx, { state, gotoFlow }) => {
+    .addAction(async (ctx, { state }) => {
         const name = ctx.body.trim();
-        await state.update({ clientName: name }); // Guardar el nombre en el estado
+        await state.update({ clientName: name });
     })
     .addAnswer(
-        '*Por favor*, selecciona tu *OBRA SOCIAL* de la siguiente lista (en caso de no tener, se te agendará como *CONSULTA PARTICULAR*):\n\n' +
+        '*Por favor*, selecciona tu *OBRA SOCIAL* de la siguiente lista:\n\n' +
         '1️⃣ INSSSEP\n' +
         '2️⃣ Swiss Medical\n' +
         '3️⃣ OSDE\n' +
@@ -212,16 +224,17 @@ export const bookAppointmentFlow = addKeyword(['2', 'reservar', 'cita', 'agendar
     });
 //Flujo de despedida
 export const goodbyeFlow = addKeyword(['bye', 'adiós', 'chao', 'chau'])
-    .addAnswer(`👋 *¡Hasta luego! Si necesitas más ayuda, no dudes en contactarnos nuevamente.*`,
+    .addAnswer(
+        `👋 *¡Hasta luego! Si necesitas más ayuda, no dudes en contactarnos nuevamente.*`,
         { delay: 1000 }
     )
-    .addAction(async (ctx, ctxFn) => {
-        // Reiniciar el flujo después de la reserva
+    .addAction(async (ctx, ctxFn 
+    ) => {
         await ctxFn.gotoFlow(welcomeFlow);
     });
 
 // Flujo de bienvenida
-const welcomeFlow = addKeyword<Provider, Database>(['hi', 'hello', 'hola'])
+const welcomeFlow = addKeyword<Provider, IDBDatabase>(['hi', 'hello', 'hola'])
     .addAnswer(`🤖🩺 *¡Bienvenido al Asistente Virtual del Consultorio Médico!* 🩺`)
     .addAnswer(
         [
@@ -231,23 +244,25 @@ const welcomeFlow = addKeyword<Provider, Database>(['hi', 'hello', 'hola'])
             '',
             '¿En qué puedo ayudarte hoy?'
         ].join('\n')
-    )
+    );
 
 // Función principal para iniciar el bot
 const main = async () => {
+    await connectDB(); // Conectar a MongoDB
+
     const adapterFlow = createFlow([
         welcomeFlow,
         availableSlotsFlow,
-        bookAppointmentFlow
+        bookAppointmentFlow,
+        goodbyeFlow
     ])
 
     const adapterProvider = createProvider(Provider)
-    const adapterDB = new Database()
 
     const { handleCtx, httpServer } = await createBot({
         flow: adapterFlow,
         provider: adapterProvider,
-        database: adapterDB,
+        database: adapterDB
     })
 
     // Endpoint para enviar mensajes
@@ -300,23 +315,23 @@ const main = async () => {
 main()
 
 // const registerFlow = addKeyword<Provider, Database>(utils.setEvent('REGISTER_FLOW'))
-//     .addAnswer(`What is your name?`, { capture: true }, async (ctx, { state }) => {
-//         await state.update({ name: ctx.body })
-//     })
-//     .addAnswer('What is your age?', { capture: true }, async (ctx, { state }) => {
-//         await state.update({ age: ctx.body })
-//     })
-//     .addAction(async (_, { flowDynamic, state }) => {
-//         await flowDynamic(`${state.get('name')}, thanks for your information!: Your age: ${state.get('age')}`)
-//     })
+    //     .addAnswer(`What is your name?`, { capture: true }, async (ctx, { state }) => {
+    //         await state.update({ name: ctx.body })
+    //     })
+    //     .addAnswer('What is your age?', { capture: true }, async (ctx, { state }) => {
+    //         await state.update({ age: ctx.body })
+    //     })
+    //     .addAction(async (_, { flowDynamic, state }) => {
+    //         await flowDynamic(`${state.get('name')}, thanks for your information!: Your age: ${state.get('age')}`)
+    //     })
 
-// const fullSamplesFlow = addKeyword<Provider, Database>(['samples', utils.setEvent('SAMPLES')])
-//     .addAnswer(`💪 I'll send you a lot files...`)
-//     .addAnswer(`Send image from Local`, { media: join(process.cwd(), 'assets', 'sample.png') })
-//     .addAnswer(`Send video from URL`, {
-//         media: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJ0ZGdjd2syeXAwMjQ4aWdkcW04OWlqcXI3Ynh1ODkwZ25zZWZ1dCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LCohAb657pSdHv0Q5h/giphy.mp4',
-//     })
-//     .addAnswer(`Send audio from URL`, { media: 'https://cdn.freesound.org/previews/728/728142_11861866-lq.mp3' })
-//     .addAnswer(`Send file from URL`, {
-//         media: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-//     })
+    // const fullSamplesFlow = addKeyword<Provider, Database>(['samples', utils.setEvent('SAMPLES')])
+    //     .addAnswer(`💪 I'll send you a lot files...`)
+    //     .addAnswer(`Send image from Local`, { media: join(process.cwd(), 'assets', 'sample.png') })
+    //     .addAnswer(`Send video from URL`, {
+    //         media: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJ0ZGdjd2syeXAwMjQ4aWdkcW04OWlqcXI3Ynh1ODkwZ25zZWZ1dCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LCohAb657pSdHv0Q5h/giphy.mp4',
+    //     })
+    //     .addAnswer(`Send audio from URL`, { media: 'https://cdn.freesound.org/previews/728/728142_11861866-lq.mp3' })
+    //     .addAnswer(`Send file from URL`, {
+    //         media: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+    //     })
