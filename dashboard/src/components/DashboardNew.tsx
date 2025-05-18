@@ -8,21 +8,19 @@ import {
 import { FaUserDoctor } from "react-icons/fa6";
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import axios from 'axios';
 import { useTheme } from '../context/ThemeContext';
-
+import { useAppointments } from '../hooks/useAppointments';
 import AvailableSlots from './AvailableSlots';
-import type { MongoAppointment } from '../types/mongo';
-import type { TimeSlot } from '../types/google';
-
-
 
 const Dashboard: FC = () => {
   const { darkMode, toggleDarkMode } = useTheme();
-  
-  const { appointments, loading, error } = useMongoAppointments();
+  const { appointments, loading, error, fetchAppointments } = useAppointments();
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 1024);
   const [currentView, setCurrentView] = useState<'calendar' | 'slots'>('calendar');
+
+  useEffect(() => {
+    void fetchAppointments(new Date());
+  }, [fetchAppointments]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -147,7 +145,7 @@ const Dashboard: FC = () => {
                         <div className="space-y-4">
                           {appointments.map((appointment) => (
                             <div 
-                              key={appointment._id}
+                              key={appointment.id}
                               className={`p-4 rounded-lg cursor-pointer transition-colors duration-200
                                 ${darkMode ? 'bg-gray-800 hover:bg-gray-700' : 'bg-gray-50 hover:bg-gray-100'}`}
                             >
@@ -161,7 +159,7 @@ const Dashboard: FC = () => {
                                       {appointment.patient.name}
                                     </h4>
                                     <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                      {appointment.time} - {appointment.duration} min
+                                      {appointment.start.displayTime} - {appointment.end.displayTime}
                                     </p>
                                   </div>
                                 </div>

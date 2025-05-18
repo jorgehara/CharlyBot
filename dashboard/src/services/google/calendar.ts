@@ -1,6 +1,4 @@
-import { google } from 'googleapis';
-import { authenticate } from './auth';
-import { calendar_v3 } from 'googleapis';
+import calendar_v3 from 'googleapis';
 
 export class GoogleCalendarService {
   private calendar: calendar_v3.Calendar;

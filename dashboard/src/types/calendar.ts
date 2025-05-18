@@ -1,15 +1,16 @@
 export interface TimeSlot {
-  startTime: string;
-  endTime: string;
-  isAvailable: boolean;
+  time: string;
   displayTime: string;
+  isAvailable: boolean;
+  period: 'mañana' | 'tarde';
 }
 
 export interface Patient {
+  id: string;
   name: string;
   phone: string;
-  email: string | null;
-  obrasocial: string | null;
+  email?: string;
+  obrasocial?: string;
 }
 
 export interface Appointment {
@@ -26,6 +27,7 @@ export interface Appointment {
   };
   displayDate: string;
   patient: Patient;
+  period: 'mañana' | 'tarde';
   status: string;
   colorId?: string;
 }

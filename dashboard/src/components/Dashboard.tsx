@@ -5,13 +5,11 @@ import {
   FaCalendarAlt, FaIdCard, FaPhone, FaEnvelope,
   FaClock
 } from 'react-icons/fa';
-import axios from 'axios';
 import { FaUserDoctor } from "react-icons/fa6";
 import { useTheme } from '../context/ThemeContext';
 import DetailedCalendar from './DetailedCalendar';
 import AvailableSlots from './AvailableSlots';
-import { useAppointments } from '../hooks/useAppointments';
-import type { MongoAppointment, MongoPatient } from '../types/api';
+import { mockObrasSociales, mockPatients, mockAppointments } from '../data/mockData';
 
 // Interfaces mejoradas con tipos más específicos
 interface ObraSocial {
@@ -24,140 +22,34 @@ interface ObraSocial {
 interface Patient {
   id: string;
   name: string;
-  lastName: string;
-  age: number;
-  gender: 'male' | 'female' | 'other';
-  obraSocial: ObraSocial;
-  affiliateNumber: string;
-  phoneNumber: string;
-  email?: string;
-  address?: string;
-  additionalInfo?: string;
-  lastVisit?: string;
-  nextAppointment?: string;
+  phone: string;
+  email: string;
+  obrasocial: string;
 }
 
 interface Appointment {
   id: string;
-  date: string;
-  time: string;
-  patient: Patient;
-  status: 'pending' | 'completed' | 'cancelled' | 'rescheduled';
-  type: 'consultation' | 'follow-up' | 'study' | 'procedure';
-  notes?: string;
-  duration: number; // en minutos
-}
-
-// Tipos para los datos de MongoDB
-interface MongoPatient {
-  _id: string;
-  name: string;
-  lastName?: string;
-  phone: string;
-  email?: string;
-  obrasocial?: string;
-}
-
-interface MongoAppointment {
-  _id: string;
-  date: string;
-  time: string;
-  patient: MongoPatient;
+  summary: string;
+  description: string;
+  start: {
+    dateTime: string;
+    displayTime: string;
+  };
+  end: {
+    dateTime: string;
+    displayTime: string;
+  };
+  displayDate: string;
+  period: string;
   status: string;
-  type: string;
-  duration: number;
+  patient: Patient;
+  colorId: string;
 }
 
-// Lista de obras sociales
-const obrasSociales: ObraSocial[] = [
-  { 
-    id: '1', 
-    name: 'Juan', 
-    lastName: 'Pérez',
-    age: 42,
-    gender: 'male',
-    obraSocial: mockObrasSociales[0],
-    affiliateNumber: 'AF-12345', 
-    phoneNumber: '555-123-4567',
-    email: 'juan.perez@example.com',
-    additionalInfo: 'Alergia a penicilina',
-    lastVisit: '2023-05-15',
-    nextAppointment: '2023-06-20'
-  },
-  { 
-    id: '2', 
-    name: 'María', 
-    lastName: 'González',
-    age: 35,
-    gender: 'female',
-    obraSocial: mockObrasSociales[1], 
-    affiliateNumber: 'AF-23456', 
-    phoneNumber: '555-234-5678',
-    additionalInfo: 'Hipertensión',
-    lastVisit: '2023-05-10',
-    nextAppointment: '2023-06-15'
-  },
-  { 
-    id: '3', 
-    name: 'Carlos', 
-    lastName: 'Rodríguez',
-    age: 28,
-    gender: 'male',
-    obraSocial: mockObrasSociales[2], 
-    affiliateNumber: 'AF-34567', 
-    phoneNumber: '555-345-6789',
-    lastVisit: '2023-04-20'
-  },
-  { 
-    id: '4', 
-    name: 'Ana', 
-    lastName: 'Martínez',
-    age: 31,
-    gender: 'female',
-    obraSocial: mockObrasSociales[3],
-    affiliateNumber: 'AF-45678', 
-    phoneNumber: '555-456-7890',
-    additionalInfo: 'Embarazada - 2do trimestre',
-    lastVisit: '2023-05-05',
-    nextAppointment: '2023-05-25'
-  },
-  { 
-    id: '5', 
-    name: 'Roberto', 
-    lastName: 'López',
-    age: 50,
-    gender: 'male',
-    obraSocial: mockObrasSociales[4],
-    affiliateNumber: 'AF-56789', 
-    phoneNumber: '555-567-8901',
-    lastVisit: '2023-04-15'
-  },
-];
-
-const mockAppointments: Appointment[] = [
-  { 
-    id: 'a1', 
-    date: '2023-05-20',
-    time: '08:00', 
-    patient: mockPatients[0], 
-    status: 'pending',
-    type: 'consultation',
-    duration: 30
-  },
-  { 
-    id: 'a2', 
-    date: '2023-05-20',
-    time: '09:00', 
-    patient: mockPatients[1], 
-    status: 'completed',
-    type: 'follow-up',
-    duration: 45
-  },
-];
+// Los datos mock ahora se importan desde mockData.ts
 
 const Dashboard: FC = () => {
-  const { darkMode, toggleDarkMode } = useTheme();  const [selectedDate, setSelectedDate] = useState(new Date());
-  const { appointments, loading, error } = useAppointments(selectedDate);
+  const { darkMode, toggleDarkMode } = useTheme();
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isMobileView, setIsMobileView] = useState(window.innerWidth < 1024);
   const [currentView, setCurrentView] = useState<'calendar' | 'slots'>('calendar');
@@ -389,33 +281,17 @@ const PatientDetails: FC<PatientDetailsProps> = ({ patient }) => {
           </div>
           <div>
             <h4 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {patient.name} {patient.lastName}
+              {patient.name}
             </h4>
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              {patient.age} años - {patient.gender === 'male' ? 'Masculino' : 'Femenino'}
-            </p>
           </div>
         </div>
       </div>
 
       <div className="space-y-3">
-        <InfoItem icon={<FaIdCard />} label="Obra Social" value={patient.obraSocial.name} />
-        <InfoItem icon={<FaPhone />} label="Teléfono" value={patient.phoneNumber} />
-        {patient.email && (
-          <InfoItem icon={<FaEnvelope />} label="Email" value={patient.email} />
-        )}
+        <InfoItem icon={<FaIdCard />} label="Obra Social" value={patient.obrasocial} />
+        <InfoItem icon={<FaPhone />} label="Teléfono" value={patient.phone} />
+        <InfoItem icon={<FaEnvelope />} label="Email" value={patient.email} />
       </div>
-
-      {patient.additionalInfo && (
-        <div className={`mt-4 p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-gray-50'}`}>
-          <h4 className={`text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            Información Adicional
-          </h4>
-          <p className={darkMode ? 'text-gray-400' : 'text-gray-700'}>
-            {patient.additionalInfo}
-          </p>
-        </div>
-      )}
     </div>
   );
 };
@@ -451,15 +327,15 @@ const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatien
   
   const getStatusColor = () => {
     switch(appointment.status) {
-      case 'completed':
+      case 'confirmada':
         return darkMode 
           ? 'bg-green-900 text-green-100' 
           : 'bg-green-100 text-green-800';
-      case 'cancelled':
+      case 'cancelada':
         return darkMode 
           ? 'bg-red-900 text-red-100' 
           : 'bg-red-100 text-red-800';
-      case 'rescheduled':
+      case 'pendiente':
         return darkMode 
           ? 'bg-yellow-900 text-yellow-100' 
           : 'bg-yellow-100 text-yellow-800';
@@ -472,24 +348,10 @@ const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatien
 
   const getStatusText = () => {
     switch(appointment.status) {
-      case 'completed': return 'Completada';
-      case 'cancelled': return 'Cancelada';
-      case 'rescheduled': return 'Reprogramada';
-      default: return 'Pendiente';
-    }
-  };
-
-  // Función para pedir los horarios disponibles de una fecha
-  const fetchAvailableSlots = async (date: Date) => {
-    const formattedDate = date.toISOString().split('T')[0]; // Formatear la fecha a 'yyyy-MM-dd'
-    try {
-      const response = await axios.get(
-        `http://localhost:3001/api/appointments/available-slots?date=${formattedDate}`
-      );
-      return { date: formattedDate, data: response.data };
-    } catch (error) {
-      console.error('Error fetching available slots:', error);
-      throw error;
+      case 'confirmada': return 'Confirmada';
+      case 'cancelada': return 'Cancelada';
+      case 'pendiente': return 'Pendiente';
+      default: return appointment.status;
     }
   };
 
@@ -507,10 +369,10 @@ const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatien
           </div>
           <div>
             <h4 className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              {appointment.patient.name} {appointment.patient.lastName}
+              {appointment.patient.name}
             </h4>
             <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              {appointment.time} - {appointment.duration} min
+              {appointment.start.displayTime} - {appointment.description}
             </p>
           </div>
         </div>
@@ -521,27 +383,17 @@ const AppointmentCard: FC<AppointmentCardProps> = ({ appointment, onSelectPatien
 
       <div className="mt-4">
         <h4 className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-          Información de Google Calendar
+          {appointment.summary}
         </h4>
         <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-700'}`}>
-          Sincronización pendiente con Google Calendar.
+          {appointment.displayDate}
         </p>
         <button 
-
           className={`mt-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
-        ${darkMode 
-          ? 'bg-blue-700 text-white hover:bg-blue-600' 
-          : 'bg-blue-500 text-white hover:bg-blue-400'}`}
-          onClick={
-            async () => {
-              try {
-                const availableSlots = await fetchAvailableSlots(new Date(appointment.date));
-                console.log('Horarios disponibles:', availableSlots);
-              } catch (error) {
-                console.error('Error fetching available slots:', error);
-              }
-            }
-          }
+          ${darkMode 
+            ? 'bg-blue-700 text-white hover:bg-blue-600' 
+            : 'bg-blue-500 text-white hover:bg-blue-400'}`}
+          onClick={() => console.log('Sincronización simulada con datos mock')}
         >
           Sincronizar con Google Calendar
         </button>
