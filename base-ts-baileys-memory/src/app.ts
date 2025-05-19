@@ -105,7 +105,6 @@ async function fetchAvailableSlots(date: Date): Promise<APIResponseWrapper> {
                 'Accept': 'application/json'
             }
         });
-        // console.log('10. Respuesta del servidor:', JSON.stringify(response.data, null, 2));
         return { data: response.data };
     } catch (error) {
         console.error('Error al obtener slots disponibles:', error);
