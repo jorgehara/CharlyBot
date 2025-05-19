@@ -4,35 +4,129 @@ import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
 import fetch from 'node-fetch'
 import { format } from 'date-fns'
 import { toZonedTime } from 'date-fns-tz'
+import { es } from 'date-fns/locale'
 import express from 'express'
 import dotenv from 'dotenv'
 import { connectDB } from './database/connection'
 import { MongoAdapter } from '@builderbot/database-mongo'
-
+import axios from 'axios'
 
 dotenv.config()
 
 // Configuración de MongoDB
 export const adapterDB = new MongoAdapter({
     dbUri: process.env.MONGO_DB_URI || 'mongodb://localhost:27017',
-    dbName: process.env.MONGO_DB_NAME || 'charlybotv3'
+    dbName: process.env.MONGO_DB_NAME || 'consultorio',
 })
 
 const PORT = process.env.PORT ?? 3008
+const API_URL = process.env.API_URL || 'http://localhost:3001/api'
+
+interface Patient {
+    name: string;
+    phone: string;
+    obrasocial: string;
+}
+
+interface AppointmentTime {
+    displayTime: string;
+}
+
+interface AppointmentDetails {
+    displayDate: string;
+    start: AppointmentTime;
+    end: AppointmentTime;
+    patient: Patient;
+    summary: string;
+}
+
+interface AppointmentData {
+    clientName: string;
+    socialWork: string;
+    phone: string;
+    date: string;
+    time: string;
+    email?: string;
+}
+
+interface AppointmentResponse {
+    success: boolean;
+    data: {
+        _id: string;
+        clientName: string;
+        socialWork: string;
+        phone: string;
+        date: string;
+        time: string;
+        status: string;
+        email?: string;
+    };
+}
+
+interface TimeSlot {
+    displayTime: string;
+    time: string;
+    status: 'available' | 'unavailable';
+}
+
+interface AvailableSlots {
+    morning: TimeSlot[];
+    afternoon: TimeSlot[];
+}
+
+interface APIResponse {
+    success: boolean;
+    data: {
+        displayDate: string;
+        available: AvailableSlots;
+    };
+}
+
+interface APIResponseWrapper {
+    data: APIResponse;
+}
+
+function formatearFechaEspanol(fecha: string): string {
+    const date = new Date(fecha);
+    const nombreDia = format(date, 'EEEE', { locale: es });
+    const diaDelMes = format(date, 'd');
+    const nombreMes = format(date, 'MMMM', { locale: es });
+    const año = format(date, 'yyyy');
+    
+    return `${nombreDia} ${diaDelMes} de ${nombreMes} de ${año}`;
+}
+
+async function fetchAvailableSlots(date: Date): Promise<APIResponseWrapper> {
+    try {
+        const formattedDate = format(date, 'yyyy-MM-dd');
+        console.log('9. Consultando slots disponibles para:', formattedDate);
+        const response = await axios.get<APIResponse>(`${API_URL}/appointments/available/${formattedDate}`, {
+            headers: {
+                'Accept': 'application/json'
+            }
+        });
+        // console.log('10. Respuesta del servidor:', JSON.stringify(response.data, null, 2));
+        return { data: response.data };
+    } catch (error) {
+        console.error('Error al obtener slots disponibles:', error);
+        throw error;
+    }
+}
 
 // Flujo para mostrar los horarios disponibles
 export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 'turnos'])
 .addAction(async (ctx, { flowDynamic, state }) => {
     try {
+        console.log('1. Iniciando flujo de horarios disponibles');
         const chatTimestamp = ctx.timestamp ? ctx.timestamp * 1000 : Date.now();
         const timeZone = 'America/Argentina/Buenos_Aires';
         const localChatDate = toZonedTime(new Date(chatTimestamp), timeZone);
 
         const today = new Date(localChatDate);
+        console.log('2. Fecha actual:', today);
         const currentHour = parseInt(format(today, 'HH'), 10);
         const currentMinute = parseInt(format(today, 'mm'), 10);
 
-        // Removed unused variable currentMinutebilbil hábil
         const getNextWorkingDay = (date: Date): Date => {
             const nextDate = new Date(date);
             do {
@@ -41,67 +135,81 @@ export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 't
             return nextDate;
         };
 
-        // Función para pedir los horarios disponibles de una fecha
-        const fetchAvailableSlots = async (date: Date) => {
-            const formattedDate = format(date, 'yyyy-MM-dd');
-            try {
-                const response = await fetch(`http://localhost:3001/api/appointments?date=${formattedDate}`);
-                const data = await response.json();
-                return data;
-            } catch (error) {
-                console.error('Error fetching slots:', error);
-                return { data: { available: { morning: [], afternoon: [] }, success: false } };
+        let appointmentDate = today;
+
+        // Inicializamos slotResponse con un valor por defecto
+        let slotResponse: APIResponseWrapper = {
+            data: {
+                success: false,
+                displayDate: format(appointmentDate, 'dd/MM/yyyy'),
+                available: { morning: [], afternoon: [] }
             }
         };
 
-        // Intentar con hoy si es día hábil y antes de las 18:00
-        let appointmentDate = today;
-        let slotResponse = { data: { available: { morning: [], afternoon: [] }, success: false } };
-
         const isWorkingDay = today.getDay() >= 1 && today.getDay() <= 5;
         const isBeforeClosing = currentHour < 18;
+        console.log('8. Es día hábil:', isWorkingDay, 'Está antes del cierre:', isBeforeClosing);
 
-        if (isWorkingDay && isBeforeClosing) {
-            slotResponse = await fetchAvailableSlots(today);
-        }
+        // Siempre buscamos horarios para el siguiente día hábil
+        appointmentDate = getNextWorkingDay(today);
+        console.log('9. Consultando horarios para el siguiente día hábil:', format(appointmentDate, 'yyyy-MM-dd'));
+        slotResponse = await fetchAvailableSlots(appointmentDate);
 
-// Si hoy no tiene horarios disponibles o no es día hábil, buscar siguiente día hábil
-if (!slotResponse.data.success ||
-    (slotResponse.data.available.morning.length === 0 &&
-     slotResponse.data.available.afternoon.length === 0)
-) {
-    appointmentDate = getNextWorkingDay(today);
-    slotResponse = await fetchAvailableSlots(appointmentDate);
-}
-        const { data } = slotResponse;
+        try {
+            const { data } = slotResponse;
+            console.log('11. Respuesta final:', JSON.stringify(data, null, 2));
 
-        if (data.success) {
-            slotResponse = await fetchAvailableSlots(appointmentDate) as { data: { available: { morning: any[]; afternoon: any[]; }; success: boolean; displayDate?: string; }; };            let message = `Horarios disponibles para el 👉 *${data.displayDate}*:\n\n`;
-            const slots = [];
-            // Combinar los horarios de la mañana y la tarde en un solo array
-            slots.push(...data.available.morning, ...data.available.afternoon);
+            if (data.success) {
+                const fechaFormateada = formatearFechaEspanol(data.data.displayDate);
+                // const esManana = format(appointmentDate, 'yyyy-MM-dd') === format(getNextWorkingDay(today), 'yyyy-MM-dd');
+                
+                let message = `📅 *Horarios disponibles*\n`;
+                message += `📆 Para el día: *${fechaFormateada}*\n\n`;
+                
+                const slots: TimeSlot[] = [];
+                let morningMessage = '';
+                let afternoonMessage = '';
+                
+                const availableMorning = data.data.available.morning.filter(slot => slot.status === 'available');
+                const availableAfternoon = data.data.available.afternoon.filter(slot => slot.status === 'available');
+                
+                if (availableMorning.length > 0) {
+                    morningMessage = `*🌅 Horarios de mañana:*\n`;
+                    availableMorning.forEach((slot, index) => {
+                        slots.push(slot);
+                        morningMessage += `${slots.length}. ⏰ ${slot.displayTime}\n`;
+                    });
+                    message += morningMessage + '\n';
+                }
+                
+                if (availableAfternoon.length > 0) {
+                    afternoonMessage = `*🌇 Horarios de tarde:*\n`;
+                    availableAfternoon.forEach((slot, index) => {
+                        slots.push(slot);
+                        afternoonMessage += `${slots.length}. ⏰ ${slot.displayTime}\n`;
+                    });
+                    message += afternoonMessage;
+                }
 
-            if (slots.length === 0) {
-            const message = `Horarios disponibles para el 👉 *${data.displayDate || 'fecha no especificada'}*:\n\n`;                await flowDynamic('No hay horarios disponibles para el día solicitado.');
-                return;
+                if (slots.length === 0) {
+                    await flowDynamic('❌ Lo siento, no hay horarios disponibles para el día solicitado.');
+                    return;
+                }
+
+                await state.update({
+                    availableSlots: slots,
+                    appointmentDate: format(appointmentDate, 'yyyy-MM-dd'),
+                    fullConversationTimestamp: format(localChatDate, "yyyy-MM-dd'T'HH:mm:ssXXX"),
+                    conversationStartTime: format(localChatDate, 'HH:mm'),
+                });
+
+                await flowDynamic(message);
+            } else {
+                await flowDynamic('Lo siento, hubo un problema al obtener los horarios disponibles. Por favor, intenta nuevamente.');
             }
-
-            // Enumerar todos los horarios disponibles
-            for (let i = 0; i < slots.length; i++) {
-                message += `${i + 1}. 🕒 ${slots[i].displayTime} - ${slots[i].status}\n`;
-            }
-
-            // Actualizar el estado con los horarios disponibles
-            await state.update({
-                availableSlots: slots,
-                appointmentDate: format(appointmentDate, 'yyyy-MM-dd'),
-                fullConversationTimestamp: format(localChatDate, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-                conversationStartTime: format(localChatDate, 'HH:mm'),
-            });
-
-            await flowDynamic(message);
-        } else {
-            await flowDynamic('No se encontraron horarios disponibles para los próximos días hábiles.');
+        } catch (error) {
+            console.error('Error al procesar la respuesta:', error);
+            await flowDynamic('Lo siento, ocurrió un error al consultar los horarios. Por favor, intenta nuevamente más tarde.');
         }
 
     } catch (error) {
@@ -119,13 +227,11 @@ if (!slotResponse.data.success ||
         const selectedSlotNumber = parseInt(ctx.body);
         const availableSlots = state.get('availableSlots');
 
-        // Validar el número de horario seleccionado
         if (isNaN(selectedSlotNumber) || selectedSlotNumber < 1 || selectedSlotNumber > availableSlots.length) {
             await flowDynamic('Número de horario inválido. Por favor, intenta nuevamente.');
             return;
         }
 
-        // Guardar el horario seleccionado en el estado y pasar al flujo de reserva
         const selectedSlot = availableSlots[selectedSlotNumber - 1];
         await state.update({ selectedSlot: selectedSlot });
         return gotoFlow(bookAppointmentFlow);
@@ -165,11 +271,11 @@ export const bookAppointmentFlow = addKeyword(['2', 'reservar', 'cita', 'agendar
         };
 
         const socialWork = socialWorks[socialWorkOption] || 'CONSULTA PARTICULAR';
-        await state.update({ socialWork }); // Guardar la obra social en el estado
+        await state.update({ socialWork });
     })
     .addAnswer(
         '*Vamos a proceder con la reserva de tu cita.*',
-        { delay: 1000 } // Agregar un delay de 1000ms
+        { delay: 1000 }
     )
     .addAction(async (ctx, { flowDynamic, state }) => {
         try {
@@ -179,7 +285,6 @@ export const bookAppointmentFlow = addKeyword(['2', 'reservar', 'cita', 'agendar
             const appointmentDate = state.get('appointmentDate');
             const phone = ctx.from;
 
-            // Datos de la cita a enviar a la API
             const appointmentData = {
                 clientName,
                 socialWork,
@@ -190,28 +295,39 @@ export const bookAppointmentFlow = addKeyword(['2', 'reservar', 'cita', 'agendar
                 description: 'Reserva de cita'
             };
 
-            // Hacer una solicitud a la API para reservar la cita
-            const response = await fetch('http://localhost:3001/api/appointments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(appointmentData)
-            });
+            try {
+                const response = await axios.post(`${API_URL}/appointments`, appointmentData, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
 
-            const data = await response.json();
-            console.log('Response from API:', data);
+                const data = response.data;
 
-            if (data.success) {
-                // Mensaje de confirmación de la cita
-                const message = `✅ Cita agendada exitosamente\n\n` +
-                    `📅 Fecha: ${data.data.displayDate}\n` +
-                    `🕒 Hora: ${data.data.start.displayTime} - ${data.data.end.displayTime}\n` +
-                    `👤 Paciente: ${data.data.patient.name}\n` +
-                    `📞 Teléfono: ${data.data.patient.phone}\n` +
-                    `🏥 Obra Social: ${data.data.patient.obrasocial}\n` +
-                    `💬 Descripción: ${data.data.summary}\n\nSi necesitas cambiar o cancelar tu cita, por favor contáctanos. *¡Gracias!*`;
-                await flowDynamic(message);
-            } else {
-                await flowDynamic('❌ Hubo un problema al agendar la cita. Por favor, intenta nuevamente.');
+                if (data.success) {
+                    const fechaFormateada = formatearFechaEspanol(data.data.date);
+                    const message = `✨ *CONFIRMACIÓN DE CITA MÉDICA* ✨\n\n` +
+                        `✅ La cita ha sido agendada exitosamente\n\n` +
+                        `📅 *Fecha:* ${fechaFormateada}\n` +
+                        `🕒 *Hora:* ${data.data.time}\n` +
+                        `👤 *Paciente:* ${data.data.clientName}\n` +
+                        `📞 *Teléfono:* ${data.data.phone}\n` +
+                        `🏥 *Obra Social:* ${data.data.socialWork}\n\n` +
+                        `ℹ️ *Información importante:*\n` +
+                        `- Por favor, llegue 10 minutos antes de su cita\n` +
+                        `- Traiga su documento de identidad\n` +
+                        `- Traiga su carnet de obra social\n\n` +
+                        `📌 *Para cambios o cancelaciones:*\n` +
+                        `Por favor contáctenos con anticipación\n\n` +
+                        `*¡Gracias por confiar en nosotros!* 🙏\n` +
+                        `----------------------------------`;
+                    await flowDynamic(message);
+                } else {
+                    await flowDynamic('Lo siento, hubo un problema al crear la cita. Por favor, intenta nuevamente.');
+                }
+            } catch (error) {
+                console.error('Error al crear la cita:', error);
+                await flowDynamic('Lo siento, ocurrió un error al crear la cita. Por favor, intenta nuevamente más tarde.');
             }
         } catch (error) {
             console.error('Error:', error);
@@ -219,7 +335,6 @@ export const bookAppointmentFlow = addKeyword(['2', 'reservar', 'cita', 'agendar
         }
     })
     .addAction(async (ctx, ctxFn) => {
-        // Reiniciar el flujo después de la reserva
         await ctxFn.gotoFlow(goodbyeFlow);
     });
 //Flujo de despedida
@@ -248,7 +363,7 @@ const welcomeFlow = addKeyword<Provider, IDBDatabase>(['hi', 'hello', 'hola'])
 
 // Función principal para iniciar el bot
 const main = async () => {
-    await connectDB(); // Conectar a MongoDB
+    await connectDB();
 
     const adapterFlow = createFlow([
         welcomeFlow,
@@ -265,7 +380,6 @@ const main = async () => {
         database: adapterDB
     })
 
-    // Endpoint para enviar mensajes
     adapterProvider.server.post(
         '/v1/messages',
         handleCtx(async (bot, req, res) => {
@@ -275,7 +389,6 @@ const main = async () => {
         })
     )
 
-    // Endpoint para registrar usuarios
     adapterProvider.server.post(
         '/v1/register',
         handleCtx(async (bot, req, res) => {
@@ -285,7 +398,6 @@ const main = async () => {
         })
     )
 
-    // Endpoint para enviar muestras
     adapterProvider.server.post(
         '/v1/samples',
         handleCtx(async (bot, req, res) => {
@@ -295,7 +407,6 @@ const main = async () => {
         })
     )
 
-    // Endpoint para manejar la lista negra
     adapterProvider.server.post(
         '/v1/blacklist',
         handleCtx(async (bot, req, res) => {
@@ -308,30 +419,7 @@ const main = async () => {
         })
     )
 
-    // Iniciar el servidor HTTP
     httpServer(+PORT)
 }
 
 main()
-
-// const registerFlow = addKeyword<Provider, Database>(utils.setEvent('REGISTER_FLOW'))
-    //     .addAnswer(`What is your name?`, { capture: true }, async (ctx, { state }) => {
-    //         await state.update({ name: ctx.body })
-    //     })
-    //     .addAnswer('What is your age?', { capture: true }, async (ctx, { state }) => {
-    //         await state.update({ age: ctx.body })
-    //     })
-    //     .addAction(async (_, { flowDynamic, state }) => {
-    //         await flowDynamic(`${state.get('name')}, thanks for your information!: Your age: ${state.get('age')}`)
-    //     })
-
-    // const fullSamplesFlow = addKeyword<Provider, Database>(['samples', utils.setEvent('SAMPLES')])
-    //     .addAnswer(`💪 I'll send you a lot files...`)
-    //     .addAnswer(`Send image from Local`, { media: join(process.cwd(), 'assets', 'sample.png') })
-    //     .addAnswer(`Send video from URL`, {
-    //         media: 'https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJ0ZGdjd2syeXAwMjQ4aWdkcW04OWlqcXI3Ynh1ODkwZ25zZWZ1dCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/LCohAb657pSdHv0Q5h/giphy.mp4',
-    //     })
-    //     .addAnswer(`Send audio from URL`, { media: 'https://cdn.freesound.org/previews/728/728142_11861866-lq.mp3' })
-    //     .addAnswer(`Send file from URL`, {
-    //         media: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    //     })

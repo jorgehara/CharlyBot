@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const MONGO_URI = process.env.MONGO_DB_URI || 'mongodb://localhost:27017';
-const DB_NAME = process.env.MONGO_DB_NAME || 'charlybotv3';
+const DB_NAME = process.env.MONGO_DB_NAME || 'consultorio';
 
 export const connectDB = async () => {
     try {
