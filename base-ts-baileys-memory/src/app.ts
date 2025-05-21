@@ -87,9 +87,17 @@ interface APIResponseWrapper {
 }
 
 function formatearFechaEspanol(fecha: string): string {
-    const date = new Date(fecha);
+    const timeZone = 'America/Argentina/Buenos_Aires';
+    // Asegurarse de que la fecha se parsee correctamente
+    const date = fecha.includes('T') ? 
+        toZonedTime(new Date(fecha), timeZone) :
+        toZonedTime(new Date(fecha + 'T00:00:00'), timeZone);
+        
+    console.log('8. Formateando fecha:', date);
     const nombreDia = format(date, 'EEEE', { locale: es });
-    const diaDelMes = format(date, 'd');
+    // Usar 'dd' para asegurar que siempre obtenemos dos dígitos
+    const diaDelMes = format(date, 'dd');
+    console.log('7. Día del mes:', diaDelMes);
     const nombreMes = format(date, 'MMMM', { locale: es });
     const año = format(date, 'yyyy');
     
@@ -117,103 +125,119 @@ export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 't
 .addAction(async (ctx, { flowDynamic, state }) => {
     try {
         console.log('1. Iniciando flujo de horarios disponibles');
-        const chatTimestamp = ctx.timestamp ? ctx.timestamp * 1000 : Date.now();
         const timeZone = 'America/Argentina/Buenos_Aires';
-        const localChatDate = toZonedTime(new Date(chatTimestamp), timeZone);
+        
+        // Obtener fecha y hora actual en la zona horaria correcta
+        const now = new Date();
+        const localChatDate = toZonedTime(now, timeZone);
+        
+        // Formatear correctamente la hora actual
+        const currentHour = parseInt(format(localChatDate, 'HH'), 10);
+        const currentMinute = parseInt(format(localChatDate, 'mm'), 10);
+        
+        console.log('2. Hora actual:', `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`);
 
-        const today = new Date(localChatDate);
-        console.log('2. Fecha actual:', today);
-        const currentHour = parseInt(format(today, 'HH'), 10);
-        const currentMinute = parseInt(format(today, 'mm'), 10);
-
+        // Función para obtener el siguiente día hábil
         const getNextWorkingDay = (date: Date): Date => {
-            const nextDate = new Date(date);
-            do {
+            const nextDate = toZonedTime(new Date(date), timeZone);
+            
+            // Si es después de las 18:00, avanzar al siguiente día
+            if (currentHour >= 18) {
                 nextDate.setDate(nextDate.getDate() + 1);
-            } while (nextDate.getDay() === 0 || nextDate.getDay() === 6);
+            }
+            
+            // Mientras sea fin de semana, seguir avanzando días
+            while (nextDate.getDay() === 0 || nextDate.getDay() === 6) {
+                nextDate.setDate(nextDate.getDate() + 1);
+            }
+            
+            // Mantener la hora actual
+            nextDate.setHours(localChatDate.getHours());
+            nextDate.setMinutes(localChatDate.getMinutes());
+            
             return nextDate;
         };
 
-        let appointmentDate = today;
+        const appointmentDate = getNextWorkingDay(localChatDate);
+        console.log('3. Fecha de cita:', format(appointmentDate, 'yyyy-MM-dd HH:mm'));
 
-        // Inicializamos slotResponse con un valor por defecto
-        let slotResponse: APIResponseWrapper = {
-            data: {
-                success: false,
-                displayDate: format(appointmentDate, 'dd/MM/yyyy'),
-                available: { morning: [], afternoon: [] }
-            }
-        };
+        const slotResponse = await fetchAvailableSlots(appointmentDate);
+        const { data } = slotResponse;
 
-        const isWorkingDay = today.getDay() >= 1 && today.getDay() <= 5;
-        const isBeforeClosing = currentHour < 18;
-        console.log('8. Es día hábil:', isWorkingDay, 'Está antes del cierre:', isBeforeClosing);
-
-        // Siempre buscamos horarios para el siguiente día hábil
-        appointmentDate = getNextWorkingDay(today);
-        console.log('9. Consultando horarios para el siguiente día hábil:', format(appointmentDate, 'yyyy-MM-dd'));
-        slotResponse = await fetchAvailableSlots(appointmentDate);
-
-        try {
-            const { data } = slotResponse;
-            console.log('11. Respuesta final:', JSON.stringify(data, null, 2));
-
-            if (data.success) {
-                const fechaFormateada = formatearFechaEspanol(data.data.displayDate);
-                // const esManana = format(appointmentDate, 'yyyy-MM-dd') === format(getNextWorkingDay(today), 'yyyy-MM-dd');
-                
-                let message = `📅 *Horarios disponibles*\n`;
-                message += `📆 Para el día: *${fechaFormateada}*\n\n`;
-                
-                const slots: TimeSlot[] = [];
-                let morningMessage = '';
-                let afternoonMessage = '';
-                
-                const availableMorning = data.data.available.morning.filter(slot => slot.status === 'available');
-                const availableAfternoon = data.data.available.afternoon.filter(slot => slot.status === 'available');
-                
-                if (availableMorning.length > 0) {
-                    morningMessage = `*🌅 Horarios de mañana:*\n`;
-                    availableMorning.forEach((slot, index) => {
-                        slots.push(slot);
-                        morningMessage += `${slots.length}. ⏰ ${slot.displayTime}\n`;
-                    });
-                    message += morningMessage + '\n';
-                }
-                
-                if (availableAfternoon.length > 0) {
-                    afternoonMessage = `*🌇 Horarios de tarde:*\n`;
-                    availableAfternoon.forEach((slot, index) => {
-                        slots.push(slot);
-                        afternoonMessage += `${slots.length}. ⏰ ${slot.displayTime}\n`;
-                    });
-                    message += afternoonMessage;
-                }
-
-                if (slots.length === 0) {
-                    await flowDynamic('❌ Lo siento, no hay horarios disponibles para el día solicitado.');
-                    return;
-                }
-
-                await state.update({
-                    availableSlots: slots,
-                    appointmentDate: format(appointmentDate, 'yyyy-MM-dd'),
-                    fullConversationTimestamp: format(localChatDate, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-                    conversationStartTime: format(localChatDate, 'HH:mm'),
+        if (data.success) {
+            const fechaFormateada = formatearFechaEspanol(data.data.displayDate);
+            console.log(data.data.displayDate);
+            let message = `📅 *Horarios disponibles*\n`;
+            message += `📆 Para el día: *${fechaFormateada}*\n\n`;
+            
+            const slots: TimeSlot[] = [];
+            let morningMessage = '';
+            let afternoonMessage = '';
+            
+            // Actualizar el filtrado de horarios
+            const availableMorning = data.data.available.morning
+                .filter(slot => {
+                    const [slotHour, slotMinute] = slot.displayTime.split(':').map(Number);
+                    
+                    // Si es el mismo día, filtrar por hora y minutos actuales
+                    if (format(appointmentDate, 'yyyy-MM-dd') === format(localChatDate, 'yyyy-MM-dd')) {
+                        return slot.status === 'available' && 
+                               (slotHour > currentHour || 
+                                (slotHour === currentHour && slotMinute > currentMinute));
+                    }
+                    return slot.status === 'available';
                 });
 
-                await flowDynamic(message);
-            } else {
-                await flowDynamic('Lo siento, hubo un problema al obtener los horarios disponibles. Por favor, intenta nuevamente.');
-            }
-        } catch (error) {
-            console.error('Error al procesar la respuesta:', error);
-            await flowDynamic('Lo siento, ocurrió un error al consultar los horarios. Por favor, intenta nuevamente más tarde.');
-        }
+            const availableAfternoon = data.data.available.afternoon
+                .filter(slot => {
+                    const [slotHour, slotMinute] = slot.displayTime.split(':').map(Number);
+                    
+                    // Si es el mismo día, filtrar por hora y minutos actuales
+                    if (format(appointmentDate, 'yyyy-MM-dd') === format(localChatDate, 'yyyy-MM-dd')) {
+                        return slot.status === 'available' && 
+                               (slotHour > currentHour || 
+                                (slotHour === currentHour && slotMinute > currentMinute));
+                    }
+                    return slot.status === 'available';
+                });
 
+            if (availableMorning.length > 0) {
+                morningMessage = `*🌅 Horarios de mañana:*\n`;
+                availableMorning.forEach((slot, index) => {
+                    slots.push(slot);
+                    morningMessage += `${slots.length}. ⏰ ${slot.displayTime}\n`;
+                });
+                message += morningMessage + '\n';
+            }
+            
+            if (availableAfternoon.length > 0) {
+                afternoonMessage = `*🌇 Horarios de tarde:*\n`;
+                availableAfternoon.forEach((slot, index) => {
+                    slots.push(slot);
+                    afternoonMessage += `${slots.length}. ⏰ ${slot.displayTime}\n`;
+                });
+                message += afternoonMessage;
+            }
+
+            if (slots.length === 0) {
+                await flowDynamic('❌ Lo siento, no hay horarios disponibles para el día solicitado.');
+                return;
+            }
+
+            await state.update({
+                availableSlots: slots,
+                appointmentDate: format(appointmentDate, 'yyyy-MM-dd'),
+                fullConversationTimestamp: format(localChatDate, "yyyy-MM-dd'T'HH:mm:ssXXX"),
+                conversationStartTime: format(localChatDate, 'HH:mm'),
+            });
+
+            await flowDynamic(message);
+        } else {
+            await flowDynamic('Lo siento, hubo un problema al obtener los horarios disponibles. Por favor, intenta nuevamente.');
+        }
     } catch (error) {
-        console.error('Error:', error);
-        await flowDynamic('Hubo un error al consultar los horarios disponibles.');
+        console.error('Error al procesar la respuesta:', error);
+        await flowDynamic('Lo siento, ocurrió un error al consultar los horarios. Por favor, intenta nuevamente más tarde.');
     }
 })
 
