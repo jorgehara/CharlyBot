@@ -88,14 +88,12 @@ interface APIResponseWrapper {
 
 function formatearFechaEspanol(fecha: string): string {
     const timeZone = 'America/Argentina/Buenos_Aires';
-    // Asegurarse de que la fecha se parsee correctamente
     const date = fecha.includes('T') ? 
         toZonedTime(new Date(fecha), timeZone) :
         toZonedTime(new Date(fecha + 'T00:00:00'), timeZone);
         
     console.log('8. Formateando fecha:', date);
     const nombreDia = format(date, 'EEEE', { locale: es });
-    // Usar 'dd' para asegurar que siempre obtenemos dos dígitos
     const diaDelMes = format(date, 'dd');
     console.log('7. Día del mes:', diaDelMes);
     const nombreMes = format(date, 'MMMM', { locale: es });
@@ -120,6 +118,20 @@ async function fetchAvailableSlots(date: Date): Promise<APIResponseWrapper> {
     }
 }
 
+// Primero, añadimos una función para obtener las citas reservadas
+async function getReservedAppointments(date: string): Promise<string[]> {
+    try {
+        const response = await axios.get(`${API_URL}/appointments/reserved/${date}`);
+        if (response.data.success) {
+            return response.data.data.map(appointment => appointment.time);
+        }
+        return [];
+    } catch (error) {
+        console.error('Error al obtener citas reservadas:', error);
+        return [];
+    }
+}
+
 // Flujo para mostrar los horarios disponibles
 export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 'turnos'])
 .addAction(async (ctx, { flowDynamic, state }) => {
@@ -127,46 +139,41 @@ export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 't
         console.log('1. Iniciando flujo de horarios disponibles');
         const timeZone = 'America/Argentina/Buenos_Aires';
         
-        // Obtener fecha y hora actual en la zona horaria correcta
         const now = new Date();
         const localChatDate = toZonedTime(now, timeZone);
         
-        // Formatear correctamente la hora actual
         const currentHour = parseInt(format(localChatDate, 'HH'), 10);
         const currentMinute = parseInt(format(localChatDate, 'mm'), 10);
         
         console.log('2. Hora actual:', `${currentHour.toString().padStart(2, '0')}:${currentMinute.toString().padStart(2, '0')}`);
 
-        // Función para obtener el siguiente día hábil
         const getNextWorkingDay = (date: Date): Date => {
-            const nextDate = toZonedTime(new Date(date), timeZone);
+            const nextDate = new Date(date);
+            nextDate.setHours(0, 0, 0, 0);
             
-            // Si es después de las 18:00, avanzar al siguiente día
             if (currentHour >= 18) {
                 nextDate.setDate(nextDate.getDate() + 1);
             }
             
-            // Mientras sea fin de semana, seguir avanzando días
             while (nextDate.getDay() === 0 || nextDate.getDay() === 6) {
                 nextDate.setDate(nextDate.getDate() + 1);
             }
-            
-            // Mantener la hora actual
-            nextDate.setHours(localChatDate.getHours());
-            nextDate.setMinutes(localChatDate.getMinutes());
-            
             return nextDate;
         };
 
         const appointmentDate = getNextWorkingDay(localChatDate);
-        console.log('3. Fecha de cita:', format(appointmentDate, 'yyyy-MM-dd HH:mm'));
+        const formattedDate = format(appointmentDate, 'yyyy-MM-dd');
+        console.log('3. Fecha de cita:', formattedDate);
+
+        // Obtener las citas reservadas antes de mostrar los horarios disponibles
+        const reservedTimes = await getReservedAppointments(formattedDate);
+        console.log('4. Horarios reservados:', reservedTimes);
 
         const slotResponse = await fetchAvailableSlots(appointmentDate);
         const { data } = slotResponse;
 
         if (data.success) {
             const fechaFormateada = formatearFechaEspanol(data.data.displayDate);
-            console.log(data.data.displayDate);
             let message = `📅 *Horarios disponibles*\n`;
             message += `📆 Para el día: *${fechaFormateada}*\n\n`;
             
@@ -174,12 +181,15 @@ export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 't
             let morningMessage = '';
             let afternoonMessage = '';
             
-            // Actualizar el filtrado de horarios
+            // Actualizamos el filtrado de horarios incluyendo la verificación de reservas
             const availableMorning = data.data.available.morning
                 .filter(slot => {
                     const [slotHour, slotMinute] = slot.displayTime.split(':').map(Number);
                     
-                    // Si es el mismo día, filtrar por hora y minutos actuales
+                    if (reservedTimes.includes(slot.displayTime)) {
+                        return false;
+                    }
+                    
                     if (format(appointmentDate, 'yyyy-MM-dd') === format(localChatDate, 'yyyy-MM-dd')) {
                         return slot.status === 'available' && 
                                (slotHour > currentHour || 
@@ -192,7 +202,10 @@ export const availableSlotsFlow = addKeyword(['1', 'horarios', 'disponibles', 't
                 .filter(slot => {
                     const [slotHour, slotMinute] = slot.displayTime.split(':').map(Number);
                     
-                    // Si es el mismo día, filtrar por hora y minutos actuales
+                    if (reservedTimes.includes(slot.displayTime)) {
+                        return false;
+                    }
+                    
                     if (format(appointmentDate, 'yyyy-MM-dd') === format(localChatDate, 'yyyy-MM-dd')) {
                         return slot.status === 'available' && 
                                (slotHour > currentHour || 
@@ -402,45 +415,6 @@ const main = async () => {
         provider: adapterProvider,
         database: adapterDB
     })
-
-    adapterProvider.server.post(
-        '/v1/messages',
-        handleCtx(async (bot, req, res) => {
-            const { number, message, urlMedia } = req.body
-            await bot.sendMessage(number, message, { media: urlMedia ?? null })
-            return res.end('sended')
-        })
-    )
-
-    adapterProvider.server.post(
-        '/v1/register',
-        handleCtx(async (bot, req, res) => {
-            const { number, name } = req.body
-            await bot.dispatch('REGISTER_FLOW', { from: number, name })
-            return res.end('trigger')
-        })
-    )
-
-    adapterProvider.server.post(
-        '/v1/samples',
-        handleCtx(async (bot, req, res) => {
-            const { number, name } = req.body
-            await bot.dispatch('SAMPLES', { from: number, name })
-            return res.end('trigger')
-        })
-    )
-
-    adapterProvider.server.post(
-        '/v1/blacklist',
-        handleCtx(async (bot, req, res) => {
-            const { number, intent } = req.body
-            if (intent === 'remove') bot.blacklist.remove(number)
-            if (intent === 'add') bot.blacklist.add(number)
-
-            res.writeHead(200, { 'Content-Type': 'application/json' })
-            return res.end(JSON.stringify({ status: 'ok', number, intent }))
-        })
-    )
 
     httpServer(+PORT)
 }
